@@ -1,0 +1,709 @@
+/* Taller vacío */
+
+.workshop-empty {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 56px 0;
+}
+
+.workshop-empty h1 {
+  max-width: 680px;
+  margin: 10px 0 14px;
+}
+
+.workshop-empty p {
+  max-width: 640px;
+  margin-bottom: 26px;
+  color: var(--color-muted);
+  font-size: 1.03rem;
+  line-height: 1.7;
+}
+
+
+/* Página */
+
+.workshop-page {
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 0 32px;
+}
+
+
+/* Header */
+
+.workshop-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 30px;
+  margin-bottom: 16px;
+}
+
+.workshop-header > div {
+  max-width: 900px;
+}
+
+.workshop-header h1 {
+  margin: 7px 0 4px;
+  font-size: clamp(
+    2rem,
+    3vw,
+    2.8rem
+  );
+}
+
+.workshop-topic {
+  margin: 0 0 4px;
+  font-size: 1.08rem;
+  font-weight: 650;
+}
+
+.workshop-teacher {
+  margin: 0 0 7px;
+  color: var(--color-muted);
+  font-size: 0.86rem;
+}
+
+.workshop-description {
+  max-width: 720px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+
+/* Tarjetas */
+
+.workshop-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+.workshop-card h2 {
+  margin: 4px 0 13px;
+  font-size: 1.15rem;
+}
+
+.workshop-muted {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.workshop-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.text-button {
+  padding: 4px 0;
+  color: var(--color-primary);
+  background: none;
+  border: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.text-button:hover {
+  text-decoration: underline;
+}
+
+
+/* Audio */
+
+.workshop-overview {
+  display: block;
+  margin-bottom: 14px;
+}
+
+.workshop-audio-card {
+  padding: 16px 20px;
+}
+
+.workshop-audio-full {
+  width: 100%;
+}
+
+.workshop-audio-card h2 {
+  margin-bottom: 8px;
+}
+
+.workshop-audio {
+  display: block;
+  width: 100%;
+  height: 38px;
+}
+
+
+/* Espacio de trabajo */
+
+.workshop-content-grid {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 2.4fr)
+    minmax(340px, 0.85fr);
+
+  gap: 16px;
+
+  align-items: stretch;
+}
+
+
+/* Transcripción */
+
+.workshop-transcript {
+  min-width: 0;
+
+  height:
+    calc(100vh - 310px);
+
+  min-height: 480px;
+
+  padding: 20px;
+}
+
+.workshop-transcript-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  height:
+    calc(100% - 55px);
+
+  overflow-y: auto;
+
+  padding-right: 7px;
+
+  scroll-behavior: smooth;
+}
+
+.workshop-transcript-item {
+  display: grid;
+
+  grid-template-columns:
+    54px minmax(0, 1fr);
+
+  gap: 12px;
+
+  padding: 11px 10px;
+
+  border-radius: 11px;
+}
+
+.workshop-transcript-item:hover {
+  background:
+    rgba(0, 0, 0, 0.02);
+}
+
+.workshop-transcript-time {
+  padding-top: 2px;
+
+  color:
+    var(--color-muted);
+
+  font-size: 0.72rem;
+  font-weight: 750;
+
+  font-variant-numeric:
+    tabular-nums;
+}
+
+.workshop-transcript-item p {
+  margin: 0;
+
+  color:
+    var(--color-text);
+
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.workshop-empty-content {
+  padding: 20px;
+
+  color:
+    var(--color-muted);
+
+  background:
+    rgba(0, 0, 0, 0.02);
+
+  border:
+    1px dashed
+    var(--color-border);
+
+  border-radius: 13px;
+}
+
+.workshop-empty-content p {
+  margin: 0;
+}
+
+
+/* Columna de momentos */
+
+.workshop-moments-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  height:
+    calc(100vh - 310px);
+
+  min-height: 480px;
+}
+
+.workshop-moments {
+  flex: 1;
+
+  min-height: 0;
+
+  padding: 18px;
+
+  overflow: hidden;
+}
+
+.moments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  max-height:
+    calc(100% - 60px);
+
+  overflow-y: auto;
+
+  padding-right: 5px;
+}
+
+
+/* Momentos individuales */
+
+.moment-card {
+  padding: 11px 12px;
+
+  background:
+    rgba(0, 0, 0, 0.018);
+
+  border:
+    1px solid
+    var(--color-border);
+
+  border-radius: 12px;
+}
+
+.moment-importante {
+  border-left:
+    3px solid
+    #b98929;
+}
+
+.moment-noEntendi {
+  border-left:
+    3px solid
+    var(--color-primary);
+}
+
+.moment-nota {
+  border-left:
+    3px solid
+    #68839a;
+}
+
+.moment-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.moment-icon {
+  display: grid;
+  place-items: center;
+
+  width: 29px;
+  height: 29px;
+
+  flex-shrink: 0;
+
+  background:
+    var(--color-surface);
+
+  border-radius: 8px;
+}
+
+.moment-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.moment-header strong {
+  font-size: 0.78rem;
+}
+
+.moment-header span {
+  color:
+    var(--color-muted);
+
+  font-size: 0.67rem;
+}
+
+.moment-card > p {
+  margin: 8px 0 0;
+
+  color:
+    var(--color-text);
+
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.moment-open {
+  margin-top: 7px;
+  padding: 0;
+
+  color:
+    var(--color-primary);
+
+  background: none;
+  border: 0;
+
+  font-size: 0.72rem;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.moment-open:hover {
+  text-decoration: underline;
+}
+
+
+/* Continuar estudiando */
+
+.continue-card {
+  flex-shrink: 0;
+
+  padding: 17px 18px;
+}
+
+.continue-card h2 {
+  margin-bottom: 7px;
+}
+
+.continue-card > p {
+  margin: 0 0 12px;
+
+  color:
+    var(--color-muted);
+
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+
+/* Scroll interno */
+
+.workshop-transcript-list::-webkit-scrollbar,
+.moments-list::-webkit-scrollbar,
+.workshop-context-text::-webkit-scrollbar,
+.study-context-preview::-webkit-scrollbar {
+  width: 7px;
+}
+
+.workshop-transcript-list::-webkit-scrollbar-track,
+.moments-list::-webkit-scrollbar-track,
+.workshop-context-text::-webkit-scrollbar-track,
+.study-context-preview::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.workshop-transcript-list::-webkit-scrollbar-thumb,
+.moments-list::-webkit-scrollbar-thumb,
+.workshop-context-text::-webkit-scrollbar-thumb,
+.study-context-preview::-webkit-scrollbar-thumb {
+  background:
+    var(--color-border);
+
+  border-radius: 10px;
+}
+
+
+/* Sesión preparada */
+
+.study-session-card {
+  margin-top: 16px;
+  padding: 22px;
+
+  scroll-margin-top: 90px;
+}
+
+.study-session-description {
+  max-width: 760px;
+
+  margin: 0 0 15px;
+
+  color:
+    var(--color-muted);
+
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.study-context-preview {
+  max-height: 260px;
+
+  overflow-y: auto;
+
+  padding: 15px;
+
+  white-space: pre-wrap;
+
+  color:
+    var(--color-text);
+
+  background:
+    rgba(0, 0, 0, 0.024);
+
+  border:
+    1px solid
+    var(--color-border);
+
+  border-radius: 12px;
+
+  font-family: inherit;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.study-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+
+  margin-top: 14px;
+}
+
+
+/* Modal */
+
+.workshop-modal-backdrop {
+  position: fixed;
+  inset: 0;
+
+  z-index: 1100;
+
+  display: grid;
+  place-items: center;
+
+  padding: 20px;
+
+  background:
+    rgba(25, 22, 20, 0.55);
+
+  backdrop-filter:
+    blur(3px);
+}
+
+.workshop-modal {
+  position: relative;
+
+  width: min(
+    720px,
+    100%
+  );
+
+  max-height: 88vh;
+
+  overflow-y: auto;
+
+  padding: 26px;
+
+  background:
+    var(--color-surface);
+
+  border:
+    1px solid
+    var(--color-border);
+
+  border-radius: 20px;
+
+  box-shadow:
+    0 25px 75px
+    rgba(0, 0, 0, 0.23);
+}
+
+.workshop-modal h2 {
+  margin: 7px 0 9px;
+}
+
+.workshop-modal-intro {
+  margin: 0;
+
+  color:
+    var(--color-muted);
+
+  line-height: 1.55;
+}
+
+.workshop-modal-close {
+  position: absolute;
+
+  top: 13px;
+  right: 14px;
+
+  display: grid;
+  place-items: center;
+
+  width: 34px;
+  height: 34px;
+
+  padding: 0;
+
+  color:
+    var(--color-muted);
+
+  background: transparent;
+
+  border: 0;
+  border-radius: 50%;
+
+  font-size: 1.45rem;
+
+  cursor: pointer;
+}
+
+.workshop-modal-close:hover {
+  background:
+    rgba(0, 0, 0, 0.05);
+}
+
+.workshop-context-text {
+  max-height: 480px;
+
+  overflow-y: auto;
+
+  margin-top: 18px;
+  padding: 17px;
+
+  white-space: pre-wrap;
+
+  background:
+    rgba(0, 0, 0, 0.025);
+
+  border:
+    1px solid
+    var(--color-border);
+
+  border-radius: 13px;
+
+  font-size: 0.87rem;
+  line-height: 1.68;
+}
+
+
+/* Tablet */
+
+@media (
+  max-width: 1050px
+) {
+  .workshop-content-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+  .workshop-transcript {
+    height: 600px;
+    min-height: 0;
+  }
+
+  .workshop-moments-column {
+    height: auto;
+    min-height: 0;
+  }
+
+  .workshop-moments {
+    overflow: visible;
+  }
+
+  .moments-list {
+    max-height: 500px;
+  }
+}
+
+
+/* Celular */
+
+@media (
+  max-width: 720px
+) {
+  .workshop-page {
+    padding-bottom: 25px;
+  }
+
+  .workshop-header {
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .workshop-header .btn {
+    width: 100%;
+  }
+
+  .workshop-description {
+    font-size: 0.86rem;
+  }
+
+  .workshop-audio-card,
+  .workshop-transcript,
+  .workshop-moments,
+  .continue-card,
+  .study-session-card {
+    padding: 16px;
+  }
+
+  .workshop-transcript {
+    height: 520px;
+  }
+
+  .workshop-transcript-item {
+    grid-template-columns:
+      46px minmax(0, 1fr);
+
+    gap: 7px;
+
+    padding:
+      10px 4px;
+  }
+
+  .workshop-transcript-item p {
+    font-size: 0.86rem;
+  }
+
+  .moments-list {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .study-session-actions {
+    flex-direction: column;
+  }
+
+  .study-session-actions .btn {
+    width: 100%;
+  }
+
+  .workshop-modal {
+    padding:
+      22px 17px 17px;
+  }
+}

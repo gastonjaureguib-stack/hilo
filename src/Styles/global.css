@@ -1,0 +1,514 @@
+/* =========================================================
+   HILO — GLOBAL.CSS
+   Estilos compartidos por toda la app
+========================================================= */
+
+:root {
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  line-height: 1.5;
+  font-weight: 400;
+
+  color: #1f1f1f;
+  background: #f7f4ef;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  /* COLORES */
+
+  --color-bg: #f7f4ef;
+
+  --color-surface: #ffffff;
+  --color-surface-soft: #faf8f5;
+
+  --color-text: #1f1f1f;
+  --color-muted: #706b67;
+
+  --color-border: #e7e1d8;
+  --color-border-strong: #d8d0c7;
+
+  --color-primary: #b4232f;
+  --color-primary-dark: #8f1822;
+  --color-primary-soft: #faf0f1;
+
+  /* SOMBRAS */
+
+  --shadow-sm:
+    0 8px 25px rgba(35, 25, 20, 0.05);
+
+  --shadow-md:
+    0 14px 40px rgba(35, 25, 20, 0.08);
+
+  /* RADIOS */
+
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 24px;
+}
+
+
+/* =========================================================
+   RESET
+========================================================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+
+  min-width: 320px;
+  min-height: 100vh;
+
+  background: var(--color-bg);
+  color: var(--color-text);
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+
+/* =========================================================
+   ELEMENTOS BASE
+========================================================= */
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+input,
+textarea,
+select {
+  color: var(--color-text);
+}
+
+
+/* =========================================================
+   CONTENEDOR GENERAL
+========================================================= */
+
+main {
+  width: min(1180px, 92%);
+
+  margin: 0 auto;
+
+  padding:
+    54px
+    0
+    90px;
+}
+
+
+/* =========================================================
+   TIPOGRAFÍA
+========================================================= */
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 18px;
+
+  font-size: clamp(
+    2.4rem,
+    5vw,
+    4rem
+  );
+
+  line-height: 1.05;
+
+  letter-spacing: -0.035em;
+}
+
+h2 {
+  margin-bottom: 16px;
+
+  font-size: 2rem;
+
+  line-height: 1.15;
+}
+
+h3 {
+  margin-bottom: 12px;
+
+  line-height: 1.25;
+}
+
+p {
+  color: var(--color-muted);
+
+  font-size: 1rem;
+
+  line-height: 1.65;
+}
+
+
+/* =========================================================
+   BOTONES
+========================================================= */
+
+.btn {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 8px;
+
+  min-height: 46px;
+
+  padding:
+    12px
+    20px;
+
+  border: none;
+
+  border-radius:
+    var(--radius-sm);
+
+  cursor: pointer;
+
+  font-weight: 700;
+
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+
+/* BOTÓN PRINCIPAL */
+
+.btn-primary {
+  background:
+    var(--color-primary);
+
+  color: #ffffff;
+
+  box-shadow:
+    0 8px 18px
+    rgba(180, 35, 47, 0.16);
+}
+
+.btn-primary:hover {
+  background:
+    var(--color-primary-dark);
+
+  box-shadow:
+    0 10px 24px
+    rgba(180, 35, 47, 0.22);
+}
+
+
+/* BOTÓN SECUNDARIO */
+
+.btn-secondary {
+  background:
+    var(--color-surface);
+
+  color:
+    var(--color-text);
+
+  border:
+    1px solid
+    var(--color-border);
+}
+
+.btn-secondary:hover {
+  background:
+    var(--color-surface-soft);
+
+  border-color:
+    var(--color-border-strong);
+}
+
+
+/* BOTÓN ANCHO COMPLETO */
+
+.full-width {
+  width: 100%;
+}
+
+
+/* =========================================================
+   BOTÓN DE TEXTO
+========================================================= */
+
+.text-button {
+  padding: 4px;
+
+  background: transparent;
+
+  color:
+    var(--color-primary);
+
+  border: none;
+
+  cursor: pointer;
+
+  font-weight: 700;
+}
+
+.text-button:hover {
+  color:
+    var(--color-primary-dark);
+}
+
+
+/* =========================================================
+   TARJETAS GENERALES
+========================================================= */
+
+.card {
+  padding: 24px;
+
+  background:
+    var(--color-surface);
+
+  border:
+    1px solid
+    var(--color-border);
+
+  border-radius:
+    var(--radius-lg);
+
+  box-shadow:
+    var(--shadow-sm);
+}
+
+
+/* =========================================================
+   LABELS / ETIQUETAS
+========================================================= */
+
+.home-eyebrow,
+.panel-label,
+.tool-label {
+  display: inline-block;
+
+  color:
+    var(--color-primary);
+
+  font-size: 0.72rem;
+
+  font-weight: 800;
+
+  letter-spacing: 0.11em;
+
+  text-transform: uppercase;
+}
+
+.panel-label,
+.tool-label {
+  color:
+    var(--color-muted);
+}
+
+
+/* =========================================================
+   INPUTS GENERALES
+========================================================= */
+
+input,
+textarea,
+select {
+  width: 100%;
+
+  background:
+    #faf9f7;
+
+  border:
+    1px solid
+    var(--color-border-strong);
+
+  border-radius:
+    var(--radius-sm);
+
+  outline: none;
+
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+input {
+  min-height: 48px;
+
+  padding:
+    0
+    14px;
+}
+
+textarea {
+  min-height: 100px;
+
+  padding:
+    12px
+    14px;
+
+  resize: vertical;
+}
+
+select {
+  min-height: 48px;
+
+  padding:
+    0
+    14px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #aaa39c;
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: #c7bbb0;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  background:
+    #ffffff;
+
+  border-color:
+    rgba(180, 35, 47, 0.65);
+
+  box-shadow:
+    0 0 0 4px
+    rgba(180, 35, 47, 0.08);
+}
+
+
+/* =========================================================
+   UTILIDADES
+========================================================= */
+
+.text-muted {
+  color:
+    var(--color-muted);
+}
+
+.text-primary {
+  color:
+    var(--color-primary);
+}
+
+.surface {
+  background:
+    var(--color-surface);
+}
+
+.surface-soft {
+  background:
+    var(--color-surface-soft);
+}
+
+
+/* =========================================================
+   RESPONSIVE GENERAL
+========================================================= */
+
+@media (max-width: 900px) {
+  main {
+    width:
+      min(94%, 760px);
+
+    padding-top:
+      42px;
+  }
+}
+
+
+@media (max-width: 650px) {
+  main {
+    width:
+      92%;
+
+    padding:
+      32px
+      0
+      60px;
+  }
+
+  h1 {
+    font-size:
+      2.3rem;
+  }
+
+  h2 {
+    font-size:
+      1.65rem;
+  }
+
+  .btn {
+    min-height:
+      44px;
+
+    padding:
+      11px
+      16px;
+  }
+}
+
+
+@media (max-width: 430px) {
+  h1 {
+    font-size:
+      2.05rem;
+  }
+
+  p {
+    font-size:
+      0.95rem;
+  }
+}

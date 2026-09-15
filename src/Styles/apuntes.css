@@ -1,0 +1,522 @@
+/* =========================================================
+   HILO — APUNTES
+========================================================= */
+
+.notes-page {
+  padding-top: 6px;
+}
+
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+.notes-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+
+  gap: 30px;
+
+  margin-bottom: 28px;
+}
+
+.notes-header > div {
+  max-width: 760px;
+}
+
+.notes-header h1 {
+  margin:
+    8px
+    0
+    12px;
+
+  font-size:
+    clamp(
+      2.3rem,
+      4vw,
+      3rem
+    );
+}
+
+.notes-header p {
+  max-width: 650px;
+
+  margin-bottom: 0;
+}
+
+
+/* =========================================================
+   BUSCADOR
+========================================================= */
+
+.notes-search {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    220px;
+
+  gap: 12px;
+
+  margin-bottom: 32px;
+
+  padding: 14px;
+
+  background:
+    var(--color-surface);
+
+  border:
+    1px solid
+    var(--color-border);
+
+  border-radius:
+    18px;
+
+  box-shadow:
+    var(--shadow-sm);
+}
+
+.notes-search input,
+.notes-search select {
+  margin: 0;
+}
+
+
+/* =========================================================
+   ESTADO VACÍO
+========================================================= */
+
+.notes-library-empty {
+  max-width: 720px;
+
+  padding:
+    42px
+    34px;
+
+  text-align: center;
+
+  background:
+    var(--color-surface);
+
+  border:
+    1px solid
+    var(--color-border);
+
+  border-radius:
+    22px;
+
+  box-shadow:
+    var(--shadow-sm);
+}
+
+.notes-empty-icon {
+  width: 58px;
+  height: 58px;
+
+  margin:
+    0
+    auto
+    18px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background:
+    var(--color-surface-soft);
+
+  border:
+    1px solid
+    var(--color-border);
+
+  border-radius: 16px;
+
+  font-size: 1.6rem;
+}
+
+.notes-library-empty h2 {
+  margin:
+    8px
+    0
+    12px;
+
+  font-size: 1.55rem;
+}
+
+.notes-library-empty p {
+  max-width: 520px;
+
+  margin:
+    0
+    auto
+    22px;
+
+  line-height: 1.65;
+}
+
+
+/* =========================================================
+   BIBLIOTECA
+========================================================= */
+
+.notes-library {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 16px;
+}
+
+.notes-library-header {
+  display: flex;
+
+  align-items: flex-end;
+
+  justify-content: space-between;
+
+  gap: 20px;
+}
+
+.notes-library-header h2 {
+  margin:
+    5px
+    0
+    0;
+
+  font-size: 1.45rem;
+}
+
+.notes-count {
+  padding:
+    7px
+    11px;
+
+  color:
+    var(--color-muted);
+
+  background:
+    var(--color-surface-soft);
+
+  border:
+    1px solid
+    var(--color-border);
+
+  border-radius: 999px;
+
+  font-size: 0.8rem;
+
+  font-weight: 700;
+}
+
+
+/* =========================================================
+   TARJETA DE CLASE
+========================================================= */
+
+.class-note-card {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1.4fr)
+    minmax(320px, 0.9fr)
+    auto;
+
+  gap: 24px;
+
+  align-items: center;
+
+  padding: 24px;
+
+  background:
+    var(--color-surface);
+
+  border:
+    1px solid
+    var(--color-border);
+
+  border-radius:
+    22px;
+
+  box-shadow:
+    var(--shadow-sm);
+
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.class-note-card:hover {
+  transform:
+    translateY(-2px);
+
+  border-color:
+    #d8cec3;
+
+  box-shadow:
+    var(--shadow-md);
+}
+
+
+/* =========================================================
+   INFORMACIÓN DE LA CLASE
+========================================================= */
+
+.class-note-content {
+  min-width: 0;
+}
+
+.class-note-top {
+  margin-bottom: 8px;
+}
+
+.class-note-status {
+  display: inline-flex;
+
+  align-items: center;
+
+  padding:
+    6px
+    10px;
+
+  color:
+    var(--color-primary);
+
+  background:
+    var(--color-primary-soft);
+
+  border-radius:
+    999px;
+
+  font-size:
+    0.72rem;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    0.05em;
+
+  text-transform:
+    uppercase;
+}
+
+.class-note-card h3 {
+  margin:
+    0
+    0
+    8px;
+
+  font-size:
+    1.35rem;
+}
+
+.class-note-topic {
+  margin-bottom:
+    5px;
+
+  color:
+    var(--color-text);
+
+  font-size:
+    0.95rem;
+
+  font-weight:
+    600;
+}
+
+.class-note-teacher {
+  margin-bottom:
+    0;
+
+  font-size:
+    0.86rem;
+}
+
+
+/* =========================================================
+   ESTADÍSTICAS
+========================================================= */
+
+.class-note-stats {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
+
+  gap:
+    8px;
+}
+
+.class-note-stats div {
+  min-width: 0;
+
+  padding:
+    12px
+    10px;
+
+  display: flex;
+
+  flex-direction: column;
+
+  align-items: center;
+
+  text-align: center;
+
+  background:
+    var(--color-surface-soft);
+
+  border:
+    1px solid
+    #eee9e3;
+
+  border-radius:
+    12px;
+}
+
+.class-note-stats strong {
+  color:
+    var(--color-text);
+
+  font-size:
+    1.25rem;
+
+  line-height:
+    1;
+}
+
+.class-note-stats span {
+  margin-top:
+    5px;
+
+  color:
+    var(--color-muted);
+
+  font-size:
+    0.7rem;
+
+  line-height:
+    1.2;
+}
+
+
+/* =========================================================
+   ACCIÓN
+========================================================= */
+
+.class-note-action {
+  display:
+    flex;
+
+  justify-content:
+    flex-end;
+}
+
+.class-note-action .btn {
+  white-space:
+    nowrap;
+}
+
+
+/* =========================================================
+   TABLET
+========================================================= */
+
+@media (max-width: 950px) {
+
+  .class-note-card {
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto;
+  }
+
+  .class-note-stats {
+    grid-column:
+      1 / -1;
+  }
+}
+
+
+/* =========================================================
+   TABLET CHICO
+========================================================= */
+
+@media (max-width: 700px) {
+
+  .notes-header {
+    flex-direction:
+      column;
+  }
+
+  .notes-header .btn {
+    width:
+      100%;
+  }
+
+  .notes-search {
+    grid-template-columns:
+      1fr;
+  }
+
+  .class-note-card {
+    grid-template-columns:
+      1fr;
+  }
+
+  .class-note-stats {
+    grid-column:
+      auto;
+  }
+
+  .class-note-action {
+    justify-content:
+      stretch;
+  }
+
+  .class-note-action .btn {
+    width:
+      100%;
+  }
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 520px) {
+
+  .notes-library-empty {
+    padding:
+      30px
+      22px;
+  }
+
+  .notes-library-header {
+    align-items:
+      flex-start;
+
+    flex-direction:
+      column;
+
+    gap:
+      10px;
+  }
+
+  .class-note-card {
+    padding:
+      20px;
+  }
+
+  .class-note-stats {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
