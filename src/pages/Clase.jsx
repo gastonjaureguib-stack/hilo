@@ -323,16 +323,7 @@ const Clase = () => {
 
   const confirmarAbrirBranch =
     () => {
-      const nombre =
-        nombreBranch.trim();
-
-      if (!nombre) {
-        return;
-      }
-
-      abrirBranch(
-        nombre
-      );
+      abrirBranch();
 
       setNombreBranch("");
       setMostrandoCrearBranch(
@@ -1983,75 +1974,87 @@ const Clase = () => {
 
           {/* Branch de foco */}
 
-          <section className="controller-module branch-module">
-
+          <section
+            className={`controller-module branch-module ${
+              branchActivo ? "branch-module-active" : ""
+            }`}
+          >
             <div className="controller-module-heading">
-
               <span className="controller-icon">
                 🌿
               </span>
 
               <div>
-
                 <strong>
                   Branch de foco
                 </strong>
 
                 <small>
-                  Aislá un tema puntual
+                  Separá un tramo de la explicación
                 </small>
-
               </div>
-
             </div>
 
             {branchActivo ? (
               <div className="branch-active-box">
+                <div className="branch-active-status">
+                  <span className="branch-active-dot" />
 
-                <div className="branch-active-label">
-                  ● BRANCH ACTIVO
+                  <span>
+                    BRANCH ACTIVO
+                  </span>
                 </div>
 
-                <strong className="branch-active-name">
-                  {branchActivo.nombre}
-                </strong>
-
                 <small className="branch-active-meta">
-                  desde {branchActivo.inicioTexto || "ahora"} ·{" "}
-                  {(branchActivo.transcripcion || []).length} fragmentos
+                  Capturando desde{" "}
+                  {branchActivo.inicioTexto || "ahora"}
+                  {" · "}
+                  {(branchActivo.transcripcion || []).length}{" "}
+                  {(branchActivo.transcripcion || []).length === 1
+                    ? "fragmento"
+                    : "fragmentos"}
                 </small>
+
+                <p className="branch-active-help">
+                  Todo lo que se transcriba hasta que lo cierres
+                  quedará guardado en este tramo.
+                </p>
 
                 <button
                   type="button"
-                  className="controller-secondary"
+                  className="controller-secondary branch-close-button"
                   onClick={finalizarBranch}
                 >
-                  Cerrar branch
+                  ■ Terminar branch
                 </button>
-
               </div>
             ) : (
               <button
                 type="button"
-                className="controller-secondary branch-placeholder-button"
-                onClick={() => {
-                  setMostrandoCrearBranch(false);
-                  setNombreBranch("");
-                }}
+                className="controller-secondary branch-open-button"
+                onClick={confirmarAbrirBranch}
               >
                 🌿 Abrir branch
               </button>
             )}
 
-            {(hiloActual.branches || []).length > 0 && !branchActivo && (
-              <small className="branch-saved-count">
-                {(hiloActual.branches || []).length}{" "}
-                {(hiloActual.branches || []).length === 1
-                  ? "branch guardado"
-                  : "branches guardados"}
-              </small>
-            )}
-
+            {(hiloActual.branches || []).filter(
+              (branch) => !branch.abierto
+            ).length > 0 &&
+              !branchActivo && (
+                <small className="branch-saved-count">
+                  {
+                    (hiloActual.branches || []).filter(
+                      (branch) => !branch.abierto
+                    ).length
+                  }{" "}
+                  {(hiloActual.branches || []).filter(
+                    (branch) => !branch.abierto
+                  ).length === 1
+                    ? "branch guardado"
+                    : "branches guardados"}
+                </small>
+              )}
           </section>
 
 
