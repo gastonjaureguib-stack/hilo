@@ -1,4 +1,6 @@
 import {
+  useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -29,10 +31,13 @@ const Clase = () => {
   const {
     hiloActual,
     iniciarNuevaClase,
+    guardarClaseEnApuntes,
     finalizarClase,
     agregarNota,
     agregarImportante,
     agregarNoEntendi,
+    abrirBranch,
+    cerrarBranch,
   } = useHilo();
 
 
@@ -85,6 +90,41 @@ const Clase = () => {
   ] = useState("");
 
   const [
+    mensajeImportante,
+    setMensajeImportante,
+  ] = useState("");
+
+  const [
+    mostrarNoEntendi,
+    setMostrarNoEntendi,
+  ] = useState(false);
+
+  const [
+    mostrarImportantes,
+    setMostrarImportantes,
+  ] = useState(false);
+
+  const [
+    mostrandoCrearBranch,
+    setMostrandoCrearBranch,
+  ] = useState(false);
+
+  const [
+    nombreBranch,
+    setNombreBranch,
+  ] = useState("");
+
+  const [
+    guardandoClase,
+    setGuardandoClase,
+  ] = useState(false);
+
+  const [
+    mensajeGuardado,
+    setMensajeGuardado,
+  ] = useState("");
+
+  const [
     mejorandoPregunta,
     setMejorandoPregunta,
   ] = useState(false);
@@ -98,6 +138,88 @@ const Clase = () => {
     finalizando,
     setFinalizando,
   ] = useState(false);
+
+  const [
+    siguiendoVivo,
+    setSiguiendoVivo,
+  ] = useState(true);
+
+  const transcripcionScrollRef =
+    useRef(null);
+
+
+  const irAlVivo =
+    () => {
+      const contenedor =
+        transcripcionScrollRef.current;
+
+      if (!contenedor) {
+        return;
+      }
+
+      setSiguiendoVivo(true);
+
+      contenedor.scrollTo({
+        top:
+          contenedor.scrollHeight,
+        behavior: "smooth",
+      });
+    };
+
+
+  const controlarScrollTranscripcion =
+    () => {
+      const contenedor =
+        transcripcionScrollRef.current;
+
+      if (!contenedor) {
+        return;
+      }
+
+      const distanciaAlFinal =
+        contenedor.scrollHeight -
+        contenedor.scrollTop -
+        contenedor.clientHeight;
+
+      const estaCercaDelFinal =
+        distanciaAlFinal <= 80;
+
+      setSiguiendoVivo(
+        estaCercaDelFinal
+      );
+    };
+
+
+  useEffect(() => {
+    if (!siguiendoVivo) {
+      return;
+    }
+
+    const contenedor =
+      transcripcionScrollRef.current;
+
+    if (!contenedor) {
+      return;
+    }
+
+    const frame =
+      window.requestAnimationFrame(
+        () => {
+          contenedor.scrollTop =
+            contenedor.scrollHeight;
+        }
+      );
+
+    return () => {
+      window.cancelAnimationFrame(
+        frame
+      );
+    };
+  }, [
+    hiloActual.transcripcion.length,
+    textoParcial,
+    siguiendoVivo,
+  ]);
 
 
   const handleChange =
@@ -154,7 +276,21 @@ const Clase = () => {
 
   const marcarImportante =
     () => {
-      agregarImportante();
+      const momento =
+        agregarImportante();
+
+      setMensajeImportante(
+        momento?.tiempoTexto
+          ? `✓ Marcado en ${momento.tiempoTexto}`
+          : "✓ Momento guardado"
+      );
+
+      window.setTimeout(
+        () => {
+          setMensajeImportante("");
+        },
+        2200
+      );
     };
 
 
@@ -176,6 +312,83 @@ const Clase = () => {
         2200
       );
     };
+
+  const branchActivo =
+    (hiloActual.branches || [])
+      .find(
+        (branch) =>
+          branch.abierto
+      ) || null;
+
+
+  const confirmarAbrirBranch =
+    () => {
+      const nombre =
+        nombreBranch.trim();
+
+      if (!nombre) {
+        return;
+      }
+
+      abrirBranch(
+        nombre
+      );
+
+      setNombreBranch("");
+      setMostrandoCrearBranch(
+        false
+      );
+    };
+
+
+  const finalizarBranch =
+    () => {
+      cerrarBranch();
+
+      setMostrandoCrearBranch(
+        false
+      );
+
+      setNombreBranch("");
+    };
+
+
+  const guardarClaseManual =
+    async () => {
+      if (guardandoClase) {
+        return;
+      }
+
+      setGuardandoClase(true);
+      setMensajeGuardado("");
+
+      try {
+        await guardarClaseEnApuntes();
+
+        setMensajeGuardado(
+          "✓ Clase guardada"
+        );
+
+        window.setTimeout(
+          () => {
+            setMensajeGuardado("");
+          },
+          2500
+        );
+      } catch (error) {
+        console.error(
+          "No se pudo guardar la clase:",
+          error
+        );
+
+        setMensajeGuardado(
+          "⚠ No se pudo guardar"
+        );
+      } finally {
+        setGuardandoClase(false);
+      }
+    };
+
 
   const obtenerContextoPregunta =
     () => {
@@ -318,7 +531,7 @@ const Clase = () => {
         }
 
 
-        finalizarClase();
+        await finalizarClase();
 
 
         navigate(
@@ -612,22 +825,53 @@ const Clase = () => {
         </div>
 
 
-        <button
-          type="button"
-          className="console-finish"
-          onClick={
-            terminarClase
-          }
-          disabled={
-            finalizando
-          }
-        >
+        <div className="console-save-group">
+
+          <button
+            type="button"
+            className="console-finish console-save"
+            onClick={
+              guardarClaseManual
+            }
+            disabled={
+              guardandoClase ||
+              finalizando
+            }
+          >
+            {
+              guardandoClase
+                ? "Guardando..."
+                : "💾 Guardar clase"
+            }
+          </button>
+
           {
-            finalizando
-              ? "Finalizando..."
-              : "Finalizar clase"
+            mensajeGuardado && (
+              <span className="console-save-feedback">
+                {mensajeGuardado}
+              </span>
+            )
           }
-        </button>
+
+          <button
+            type="button"
+            className="console-finish"
+            onClick={
+              terminarClase
+            }
+            disabled={
+              finalizando ||
+              guardandoClase
+            }
+          >
+            {
+              finalizando
+                ? "Finalizando..."
+                : "Finalizar clase"
+            }
+          </button>
+
+        </div>
 
       </header>
 
@@ -636,7 +880,10 @@ const Clase = () => {
 
         {/* Panel principal */}
 
-        <main className="console-transcript">
+        <main
+          className="console-transcript"
+          style={{ position: "relative" }}
+        >
 
           <div className="console-panel-header">
 
@@ -873,7 +1120,15 @@ const Clase = () => {
 
           {/* Texto */}
 
-          <div className="console-transcript-scroll">
+          <div
+            className="console-transcript-scroll"
+            ref={
+              transcripcionScrollRef
+            }
+            onScroll={
+              controlarScrollTranscripcion
+            }
+          >
 
             {
               hiloActual
@@ -921,22 +1176,116 @@ const Clase = () => {
                                 ]?.tiempo
                             );
 
-                          const marcas =
-                            (
-                              hiloActual
-                                .noEntendi ||
-                              []
-                            ).filter(
-                              (momento) => {
-                                const tiempoMarca =
+                          const filtrarMarcasDelBloque =
+                            (lista = []) =>
+                              lista.filter(
+                                (momento) => {
+                                  const tiempoMarca =
+                                    Number(
+                                      momento.tiempoSegundos ??
+                                      momento.tiempo
+                                    );
+
+                                  if (
+                                    !Number.isFinite(
+                                      tiempoMarca
+                                    ) ||
+                                    !Number.isFinite(
+                                      tiempoBloque
+                                    )
+                                  ) {
+                                    return false;
+                                  }
+
+                                  if (
+                                    Number.isFinite(
+                                      tiempoSiguiente
+                                    )
+                                  ) {
+                                    return (
+                                      tiempoMarca >=
+                                        tiempoBloque &&
+                                      tiempoMarca <
+                                        tiempoSiguiente
+                                    );
+                                  }
+
+                                  return (
+                                    tiempoMarca >=
+                                    tiempoBloque
+                                  );
+                                }
+                              );
+
+                          const marcasNoEntendi =
+                            filtrarMarcasDelBloque(
+                              hiloActual.noEntendi || []
+                            );
+
+                          const marcasImportantes =
+                            filtrarMarcasDelBloque(
+                              hiloActual.importantes || []
+                            );
+
+
+                          const branches =
+                            hiloActual.branches || [];
+
+
+                          const branchEnBloque =
+                            branches.find(
+                              (branch) => {
+                                const inicio =
                                   Number(
-                                    momento.tiempoSegundos ??
-                                    momento.tiempo
+                                    branch.inicioSegundos
+                                  );
+
+                                const fin =
+                                  branch.abierto
+                                    ? Infinity
+                                    : Number(
+                                        branch.finSegundos
+                                      );
+
+                                if (
+                                  !Number.isFinite(
+                                    inicio
+                                  ) ||
+                                  !Number.isFinite(
+                                    tiempoBloque
+                                  )
+                                ) {
+                                  return false;
+                                }
+
+                                const finValido =
+                                  Number.isFinite(
+                                    fin
+                                  )
+                                    ? fin
+                                    : Infinity;
+
+                                return (
+                                  tiempoBloque >=
+                                    inicio &&
+                                  tiempoBloque <=
+                                    finValido
+                                );
+                              }
+                            );
+
+
+                          const iniciosBranch =
+                            branches.filter(
+                              (branch) => {
+                                const inicio =
+                                  Number(
+                                    branch.inicioSegundos
                                   );
 
                                 if (
                                   !Number.isFinite(
-                                    tiempoMarca
+                                    inicio
                                   ) ||
                                   !Number.isFinite(
                                     tiempoBloque
@@ -951,15 +1300,61 @@ const Clase = () => {
                                   )
                                 ) {
                                   return (
-                                    tiempoMarca >=
+                                    inicio >=
                                       tiempoBloque &&
-                                    tiempoMarca <
+                                    inicio <
                                       tiempoSiguiente
                                   );
                                 }
 
                                 return (
-                                  tiempoMarca >=
+                                  inicio >=
+                                  tiempoBloque
+                                );
+                              }
+                            );
+
+
+                          const finalesBranch =
+                            branches.filter(
+                              (branch) => {
+                                if (
+                                  branch.abierto
+                                ) {
+                                  return false;
+                                }
+
+                                const fin =
+                                  Number(
+                                    branch.finSegundos
+                                  );
+
+                                if (
+                                  !Number.isFinite(
+                                    fin
+                                  ) ||
+                                  !Number.isFinite(
+                                    tiempoBloque
+                                  )
+                                ) {
+                                  return false;
+                                }
+
+                                if (
+                                  Number.isFinite(
+                                    tiempoSiguiente
+                                  )
+                                ) {
+                                  return (
+                                    fin >=
+                                      tiempoBloque &&
+                                    fin <
+                                      tiempoSiguiente
+                                  );
+                                }
+
+                                return (
+                                  fin >=
                                   tiempoBloque
                                 );
                               }
@@ -972,7 +1367,19 @@ const Clase = () => {
                                 `transcripcion-${index}`
                               }
                             >
-                              <article className="console-transcript-row">
+                              <article
+                                className="console-transcript-row"
+                                style={
+                                  branchEnBloque
+                                    ? {
+                                        borderLeft:
+                                          "3px solid #5f8f68",
+                                        paddingLeft:
+                                          "10px",
+                                      }
+                                    : undefined
+                                }
+                              >
 
                                 <time>
                                   {
@@ -990,8 +1397,40 @@ const Clase = () => {
 
                               </article>
 
+
                               {
-                                marcas.map(
+                                iniciosBranch.map(
+                                  (
+                                    branch,
+                                    branchIndex
+                                  ) => (
+                                    <div
+                                      className="console-lost-marker"
+                                      key={
+                                        branch.id
+                                          ? `branch-inicio-${branch.id}`
+                                          : `branch-inicio-${index}-${branchIndex}`
+                                      }
+                                      style={{
+                                        borderLeftColor:
+                                          "#5f8f68",
+                                      }}
+                                    >
+                                      <span>
+                                        🌿 Branch · {branch.nombre || "Tema de foco"}
+                                      </span>
+
+                                      <time>
+                                        {branch.inicioTexto || ""}
+                                      </time>
+                                    </div>
+                                  )
+                                )
+                              }
+
+
+                              {
+                                marcasNoEntendi.map(
                                   (
                                     momento,
                                     marcaIndex
@@ -1012,6 +1451,69 @@ const Clase = () => {
                                           momento.tiempoTexto ||
                                           ""
                                         }
+                                      </time>
+                                    </div>
+                                  )
+                                )
+                              }
+
+                              {
+                                marcasImportantes.map(
+                                  (
+                                    momento,
+                                    marcaIndex
+                                  ) => (
+                                    <div
+                                      className="console-lost-marker"
+                                      key={
+                                        momento.id ||
+                                        `importante-${index}-${marcaIndex}`
+                                      }
+                                      style={{
+                                        borderLeftColor: "#b98929",
+                                      }}
+                                    >
+                                      <span>
+                                        📌 Importante
+                                      </span>
+
+                                      <time>
+                                        {
+                                          momento.tiempoTexto ||
+                                          ""
+                                        }
+                                      </time>
+                                    </div>
+                                  )
+                                )
+                              }
+
+
+                              {
+                                finalesBranch.map(
+                                  (
+                                    branch,
+                                    branchIndex
+                                  ) => (
+                                    <div
+                                      className="console-lost-marker"
+                                      key={
+                                        branch.id
+                                          ? `branch-fin-${branch.id}`
+                                          : `branch-fin-${index}-${branchIndex}`
+                                      }
+                                      style={{
+                                        borderLeftColor:
+                                          "#5f8f68",
+                                        opacity: 0.78,
+                                      }}
+                                    >
+                                      <span>
+                                        🌿 Fin branch · {branch.nombre || "Tema de foco"}
+                                      </span>
+
+                                      <time>
+                                        {branch.finTexto || ""}
                                       </time>
                                     </div>
                                   )
@@ -1049,6 +1551,40 @@ const Clase = () => {
 
           </div>
 
+          {
+            !siguiendoVivo &&
+            (
+              hiloActual.transcripcion.length > 0 ||
+              textoParcial
+            ) && (
+              <button
+                type="button"
+                onClick={
+                  irAlVivo
+                }
+                aria-label="Volver a la transcripción en vivo"
+                style={{
+                  position: "absolute",
+                  right: "18px",
+                  bottom: "18px",
+                  zIndex: 5,
+                  border: "1px solid rgba(255, 255, 255, 0.16)",
+                  borderRadius: "999px",
+                  padding: "8px 13px",
+                  background: "rgba(18, 24, 33, 0.94)",
+                  color: "#ffffff",
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.22)",
+                  backdropFilter: "blur(8px)",
+                }}
+              >
+                ↓ Volver al vivo
+              </button>
+            )
+          }
+
         </main>
 
 
@@ -1078,6 +1614,8 @@ const Clase = () => {
 
           </div>
 
+
+          <div className="controller-tools-scroll">
 
           {/* Perdí el hilo */}
 
@@ -1122,6 +1660,91 @@ const Clase = () => {
                 </span>
               )
             }
+
+            {(hiloActual.noEntendi || []).length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMostrarNoEntendi(
+                      (prev) => !prev
+                    )
+                  }
+                  style={{
+                    width: "100%",
+                    marginTop: "8px",
+                    padding: "7px 9px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                    border: "1px solid rgba(255,255,255,.09)",
+                    borderRadius: "9px",
+                    background: "rgba(255,255,255,.035)",
+                    color: "inherit",
+                    fontSize: "0.74rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  <span>
+                    {(hiloActual.noEntendi || []).length} para revisar
+                  </span>
+                  <span>
+                    {mostrarNoEntendi ? "▲" : "▼"}
+                  </span>
+                </button>
+
+                {mostrarNoEntendi && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                      maxHeight: "145px",
+                      overflowY: "auto",
+                      marginTop: "7px",
+                    }}
+                  >
+                    {[...(hiloActual.noEntendi || [])]
+                      .reverse()
+                      .map((momento, index) => (
+                        <div
+                          key={momento.id || `no-entendi-panel-${index}`}
+                          style={{
+                            padding: "7px 9px",
+                            borderLeft: "3px solid var(--color-primary)",
+                            borderRadius: "7px",
+                            background: "rgba(255,255,255,.025)",
+                          }}
+                        >
+                          <strong style={{ fontSize: "0.72rem" }}>
+                            🧵 {momento.tiempoTexto || "Momento marcado"}
+                          </strong>
+                          {(momento.contexto || momento.texto) && (
+                            <p
+                              style={{
+                                margin: "4px 0 0",
+                                fontSize: "0.7rem",
+                                lineHeight: 1.35,
+                                opacity: 0.78,
+                              }}
+                            >
+                              {
+                                      typeof momento.contexto === "string"
+                                        ? momento.contexto
+                                        : momento.contexto?.texto ||
+                                          momento.texto ||
+                                          "Sin contexto disponible."
+                                    }
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </>
+            )}
 
           </section>
 
@@ -1261,6 +1884,174 @@ const Clase = () => {
               Marcar importante
             </button>
 
+
+            {
+              mensajeImportante && (
+                <span className="controller-feedback">
+                  {mensajeImportante}
+                </span>
+              )
+            }
+
+            {(hiloActual.importantes || []).length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMostrarImportantes(
+                      (prev) => !prev
+                    )
+                  }
+                  style={{
+                    width: "100%",
+                    marginTop: "8px",
+                    padding: "7px 9px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                    border: "1px solid rgba(255,255,255,.09)",
+                    borderRadius: "9px",
+                    background: "rgba(255,255,255,.035)",
+                    color: "inherit",
+                    fontSize: "0.74rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  <span>
+                    {(hiloActual.importantes || []).length} importantes
+                  </span>
+                  <span>
+                    {mostrarImportantes ? "▲" : "▼"}
+                  </span>
+                </button>
+
+                {mostrarImportantes && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "6px",
+                      maxHeight: "145px",
+                      overflowY: "auto",
+                      marginTop: "7px",
+                    }}
+                  >
+                    {[...(hiloActual.importantes || [])]
+                      .reverse()
+                      .map((momento, index) => (
+                        <div
+                          key={momento.id || `importante-panel-${index}`}
+                          style={{
+                            padding: "7px 9px",
+                            borderLeft: "3px solid #b98929",
+                            borderRadius: "7px",
+                            background: "rgba(255,255,255,.025)",
+                          }}
+                        >
+                          <strong style={{ fontSize: "0.72rem" }}>
+                            📌 {momento.tiempoTexto || "Momento marcado"}
+                          </strong>
+                          {(momento.contexto || momento.texto) && (
+                            <p
+                              style={{
+                                margin: "4px 0 0",
+                                fontSize: "0.7rem",
+                                lineHeight: 1.35,
+                                opacity: 0.78,
+                              }}
+                            >
+                              {
+                                      typeof momento.contexto === "string"
+                                        ? momento.contexto
+                                        : momento.contexto?.texto ||
+                                          momento.texto ||
+                                          "Sin contexto disponible."
+                                    }
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </>
+            )}
+
+          </section>
+
+
+          {/* Branch de foco */}
+
+          <section className="controller-module branch-module">
+
+            <div className="controller-module-heading">
+
+              <span className="controller-icon">
+                🌿
+              </span>
+
+              <div>
+
+                <strong>
+                  Branch de foco
+                </strong>
+
+                <small>
+                  Aislá un tema puntual
+                </small>
+
+              </div>
+
+            </div>
+
+            {branchActivo ? (
+              <div className="branch-active-box">
+
+                <div className="branch-active-label">
+                  ● BRANCH ACTIVO
+                </div>
+
+                <strong className="branch-active-name">
+                  {branchActivo.nombre}
+                </strong>
+
+                <small className="branch-active-meta">
+                  desde {branchActivo.inicioTexto || "ahora"} ·{" "}
+                  {(branchActivo.transcripcion || []).length} fragmentos
+                </small>
+
+                <button
+                  type="button"
+                  className="controller-secondary"
+                  onClick={finalizarBranch}
+                >
+                  Cerrar branch
+                </button>
+
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="controller-secondary branch-placeholder-button"
+                onClick={() => {
+                  setMostrandoCrearBranch(false);
+                  setNombreBranch("");
+                }}
+              >
+                🌿 Abrir branch
+              </button>
+            )}
+
+            {(hiloActual.branches || []).length > 0 && !branchActivo && (
+              <small className="branch-saved-count">
+                {(hiloActual.branches || []).length}{" "}
+                {(hiloActual.branches || []).length === 1
+                  ? "branch guardado"
+                  : "branches guardados"}
+              </small>
+            )}
+
           </section>
 
 
@@ -1315,6 +2106,8 @@ const Clase = () => {
             </button>
 
           </section>
+
+          </div>
 
         </aside>
 

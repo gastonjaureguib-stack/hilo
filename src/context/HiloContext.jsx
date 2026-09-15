@@ -10,6 +10,7 @@ import {
   obtenerClaseLocal,
   borrarChunksAudio,
   obtenerChunksAudio,
+  guardarClaseTerminada,
 } from "../utils/hiloStorage.js";
 
 import {
@@ -44,6 +45,8 @@ const crearId = () => {
 
 
 const estadoInicial = {
+  id: null,
+
   estado: "nuevo",
 
   iniciadaEn: null,
@@ -64,6 +67,7 @@ const estadoInicial = {
   preguntas: [],
   importantes: [],
   noEntendi: [],
+  branches: [],
 
   audio: null,
 };
@@ -85,7 +89,9 @@ export const HiloProvider = ({
   ] = useState(true);
 
 
-  // Recuperar clase
+  // =========================================================
+  // RECUPERAR CLASE
+  // =========================================================
 
   useEffect(() => {
     const recuperarClase =
@@ -100,7 +106,6 @@ export const HiloProvider = ({
 
           if (!claseGuardada) {
             relojClase.reiniciar();
-
             return;
           }
 
@@ -108,6 +113,10 @@ export const HiloProvider = ({
           let claseRecuperada = {
             ...estadoInicial,
             ...claseGuardada,
+
+            id:
+              claseGuardada.id ||
+              crearId(),
 
             clase: {
               ...estadoInicial.clase,
@@ -137,6 +146,11 @@ export const HiloProvider = ({
               claseGuardada
                 .noEntendi ||
               [],
+
+            branches:
+              claseGuardada
+                .branches ||
+              [],
           };
 
 
@@ -151,7 +165,9 @@ export const HiloProvider = ({
           }
 
 
-          // Recuperar audio terminado
+          // ===================================================
+          // RECUPERAR AUDIO TERMINADO
+          // ===================================================
 
           if (
             claseGuardada.audio
@@ -176,7 +192,9 @@ export const HiloProvider = ({
             };
           }
 
-          // Recuperar audio desde chunks
+          // ===================================================
+          // RECUPERAR AUDIO DESDE CHUNKS
+          // ===================================================
 
           else if (
             chunksGuardados.length >
@@ -266,7 +284,9 @@ export const HiloProvider = ({
   }, []);
 
 
-  // Guardar cambios
+  // =========================================================
+  // GUARDADO AUTOMÁTICO DE LA CLASE ACTUAL
+  // =========================================================
 
   useEffect(() => {
     if (cargandoHilo) {
@@ -301,7 +321,9 @@ export const HiloProvider = ({
   ]);
 
 
-  // Obtener tiempo actual
+  // =========================================================
+  // OBTENER TIEMPO ACTUAL
+  // =========================================================
 
   const obtenerTiempoActual =
     () => {
@@ -310,7 +332,9 @@ export const HiloProvider = ({
     };
 
 
-  // Nueva clase
+  // =========================================================
+  // NUEVA CLASE
+  // =========================================================
 
   const iniciarNuevaClase =
     (datosClase) => {
@@ -350,6 +374,9 @@ export const HiloProvider = ({
 
 
       setHiloActual({
+        id:
+          crearId(),
+
         estado:
           "enClase",
 
@@ -386,6 +413,7 @@ export const HiloProvider = ({
         preguntas: [],
         importantes: [],
         noEntendi: [],
+        branches: [],
 
         audio:
           null,
@@ -393,7 +421,69 @@ export const HiloProvider = ({
     };
 
 
-  // Pausar reloj
+  // =========================================================
+  // GUARDAR CLASE EN APUNTES SIN FINALIZAR
+  // =========================================================
+
+  const guardarClaseEnApuntes =
+    async () => {
+      const id =
+        hiloActual.id ||
+        crearId();
+
+      const claseParaGuardar = {
+        ...hiloActual,
+
+        id,
+
+        reloj:
+          relojClase
+            .obtenerSnapshot(),
+
+        guardadaEn:
+          new Date()
+            .toISOString(),
+      };
+
+
+      try {
+        const claseGuardada =
+          await guardarClaseTerminada(
+            claseParaGuardar
+          );
+
+
+        // Si era una clase antigua sin ID,
+        // guardamos el ID también en hiloActual
+        // para que los próximos guardados
+        // actualicen el mismo registro.
+
+        if (!hiloActual.id) {
+          setHiloActual(
+            (prev) => ({
+              ...prev,
+              id,
+            })
+          );
+        }
+
+
+        return claseGuardada;
+
+      } catch (error) {
+        console.error(
+          "No se pudo guardar la clase en Apuntes:",
+          error
+        );
+
+        throw error;
+      }
+    };
+
+
+  // =========================================================
+  // PAUSAR RELOJ
+  // =========================================================
 
   const pausarRelojClase =
     () => {
@@ -412,7 +502,9 @@ export const HiloProvider = ({
     };
 
 
-  // Reanudar reloj
+  // =========================================================
+  // REANUDAR RELOJ
+  // =========================================================
 
   const reanudarRelojClase =
     () => {
@@ -431,37 +523,84 @@ export const HiloProvider = ({
     };
 
 
-  // Finalizar clase
+  // =========================================================
+  // FINALIZAR CLASE
+  // =========================================================
 
   const finalizarClase =
-    () => {
+    async () => {
       const duracion =
         relojClase.finalizar();
 
+      const ahora =
+        new Date()
+          .toISOString();
 
-      setHiloActual(
-        (prev) => ({
-          ...prev,
+      const id =
+        hiloActual.id ||
+        crearId();
 
-          estado:
-            "taller",
 
-          finalizadaEn:
-            new Date()
-              .toISOString(),
+      const claseTerminada = {
+        ...hiloActual,
 
-          duracionSegundos:
-            duracion,
+        id,
 
-          reloj:
-            relojClase
-              .obtenerSnapshot(),
-        })
-      );
+        estado:
+          "taller",
+
+        finalizadaEn:
+          ahora,
+
+        duracionSegundos:
+          duracion,
+
+        reloj:
+          relojClase
+            .obtenerSnapshot(),
+
+        guardadaEn:
+          ahora,
+      };
+
+
+      try {
+        const claseGuardada =
+          await guardarClaseTerminada(
+            claseTerminada
+          );
+
+
+        setHiloActual(
+          claseGuardada
+        );
+
+
+        return claseGuardada;
+
+      } catch (error) {
+        console.error(
+          "No se pudo guardar la clase terminada:",
+          error
+        );
+
+
+        // Aunque falle el histórico,
+        // mantenemos toda la clase.
+
+        setHiloActual(
+          claseTerminada
+        );
+
+
+        return claseTerminada;
+      }
     };
 
 
-  // Guardar audio
+  // =========================================================
+  // GUARDAR AUDIO
+  // =========================================================
 
   const guardarAudio =
     (blob) => {
@@ -521,7 +660,9 @@ export const HiloProvider = ({
     };
 
 
-  // Agregar transcripción final
+  // =========================================================
+  // AGREGAR TRANSCRIPCIÓN
+  // =========================================================
 
   const agregarTranscripcion =
     (
@@ -565,18 +706,38 @@ export const HiloProvider = ({
 
 
       setHiloActual(
-        (prev) => ({
-          ...prev,
+        (prev) => {
+          const branches =
+            (prev.branches || [])
+              .map(
+                (branch) =>
+                  branch.abierto
+                    ? {
+                        ...branch,
 
-          transcripcion: [
-            ...prev.transcripcion,
-            bloqueCompatible,
-          ],
+                        transcripcion: [
+                          ...(branch.transcripcion || []),
+                          bloqueCompatible,
+                        ],
+                      }
+                    : branch
+              );
 
-          reloj:
-            relojClase
-              .obtenerSnapshot(),
-        })
+          return {
+            ...prev,
+
+            transcripcion: [
+              ...prev.transcripcion,
+              bloqueCompatible,
+            ],
+
+            branches,
+
+            reloj:
+              relojClase
+                .obtenerSnapshot(),
+          };
+        }
       );
 
 
@@ -584,7 +745,9 @@ export const HiloProvider = ({
     };
 
 
-  // Nota rápida
+  // =========================================================
+  // NOTA
+  // =========================================================
 
   const agregarNota =
     (
@@ -643,7 +806,9 @@ export const HiloProvider = ({
     };
 
 
-  // Pregunta
+  // =========================================================
+  // PREGUNTA
+  // =========================================================
 
   const agregarPregunta =
     (
@@ -702,7 +867,9 @@ export const HiloProvider = ({
     };
 
 
-  // Momento importante
+  // =========================================================
+  // IMPORTANTE
+  // =========================================================
 
   const agregarImportante =
     (
@@ -775,7 +942,9 @@ export const HiloProvider = ({
     };
 
 
-  // Perdí el hilo
+  // =========================================================
+  // PERDÍ EL HILO
+  // =========================================================
 
   const agregarNoEntendi =
     (
@@ -859,6 +1028,143 @@ export const HiloProvider = ({
     };
 
 
+  // =========================================================
+  // BRANCH DE FOCO
+  // =========================================================
+
+  const abrirBranch =
+    () => {
+      const tiempo =
+        obtenerTiempoActual();
+
+      const nuevoBranch = {
+        id:
+          crearId(),
+
+        // El título es opcional y se podrá editar
+        // después desde Taller / Apuntes.
+        nombre:
+          "",
+
+        abierto:
+          true,
+
+        fechaInicio:
+          new Date()
+            .toISOString(),
+
+        fechaFin:
+          null,
+
+        inicioSegundos:
+          tiempo,
+
+        inicioTexto:
+          formatearTiempo(
+            tiempo
+          ),
+
+        finSegundos:
+          null,
+
+        finTexto:
+          null,
+
+        transcripcion: [],
+      };
+
+      let branchCreado =
+        null;
+
+      setHiloActual(
+        (prev) => {
+          // Evitamos abrir dos branches al mismo tiempo.
+          const yaHayBranchActivo =
+            (prev.branches || [])
+              .some(
+                (branch) =>
+                  branch.abierto
+              );
+
+          if (
+            yaHayBranchActivo
+          ) {
+            return prev;
+          }
+
+          branchCreado =
+            nuevoBranch;
+
+          return {
+            ...prev,
+
+            branches: [
+              ...(prev.branches || []),
+              nuevoBranch,
+            ],
+          };
+        }
+      );
+
+      return branchCreado;
+    };
+
+
+  const cerrarBranch =
+    () => {
+      const tiempo =
+        obtenerTiempoActual();
+
+      let branchCerrado =
+        null;
+
+      setHiloActual(
+        (prev) => ({
+          ...prev,
+
+          branches:
+            (prev.branches || [])
+              .map(
+                (branch) => {
+                  if (
+                    !branch.abierto
+                  ) {
+                    return branch;
+                  }
+
+                  branchCerrado = {
+                    ...branch,
+
+                    abierto:
+                      false,
+
+                    fechaFin:
+                      new Date()
+                        .toISOString(),
+
+                    finSegundos:
+                      tiempo,
+
+                    finTexto:
+                      formatearTiempo(
+                        tiempo
+                      ),
+                  };
+
+                  return branchCerrado;
+                }
+              ),
+        })
+      );
+
+      return branchCerrado;
+    };
+
+
+  // =========================================================
+  // PROVIDER
+  // =========================================================
+
   return (
     <HiloContext.Provider
       value={{
@@ -866,6 +1172,8 @@ export const HiloProvider = ({
         cargandoHilo,
 
         iniciarNuevaClase,
+
+        guardarClaseEnApuntes,
         finalizarClase,
 
         pausarRelojClase,
@@ -880,6 +1188,9 @@ export const HiloProvider = ({
         agregarPregunta,
         agregarImportante,
         agregarNoEntendi,
+
+        abrirBranch,
+        cerrarBranch,
       }}
     >
       {children}

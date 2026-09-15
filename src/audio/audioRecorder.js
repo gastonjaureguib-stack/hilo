@@ -1,3 +1,6 @@
+import fixWebmDuration from "fix-webm-duration";
+
+
 const obtenerMimeType =
   () => {
     if (
@@ -30,7 +33,9 @@ const obtenerMimeType =
   };
 
 
-// Crear grabador
+// =========================================================
+// CREAR GRABADOR
+// =========================================================
 
 export const crearGrabadorAudio =
   ({
@@ -80,6 +85,20 @@ export const crearGrabadorAudio =
       false;
 
 
+    // =====================================================
+    // CONTROL DE DURACIÓN
+    // =====================================================
+
+    let inicioGrabacion =
+      null;
+
+    let inicioPausa =
+      null;
+
+    let tiempoPausado =
+      0;
+
+
     const cambiarEstado =
       (nuevoEstado) => {
         estado =
@@ -91,8 +110,21 @@ export const crearGrabadorAudio =
       };
 
 
+    // =====================================================
+    // EVENTOS DEL MEDIARECORDER
+    // =====================================================
+
     recorder.onstart =
       () => {
+        inicioGrabacion =
+          performance.now();
+
+        inicioPausa =
+          null;
+
+        tiempoPausado =
+          0;
+
         cambiarEstado(
           "grabando"
         );
@@ -101,6 +133,9 @@ export const crearGrabadorAudio =
 
     recorder.onpause =
       () => {
+        inicioPausa =
+          performance.now();
+
         cambiarEstado(
           "pausado"
         );
@@ -109,6 +144,18 @@ export const crearGrabadorAudio =
 
     recorder.onresume =
       () => {
+        if (
+          inicioPausa !==
+          null
+        ) {
+          tiempoPausado +=
+            performance.now() -
+            inicioPausa;
+
+          inicioPausa =
+            null;
+        }
+
         cambiarEstado(
           "grabando"
         );
@@ -152,8 +199,12 @@ export const crearGrabadorAudio =
       };
 
 
+    // =====================================================
+    // FINALIZAR
+    // =====================================================
+
     recorder.onstop =
-      () => {
+      async () => {
         if (finalizado) {
           return;
         }
@@ -161,13 +212,47 @@ export const crearGrabadorAudio =
         finalizado =
           true;
 
+
+        // Si se detuvo mientras estaba
+        // pausado, contamos esa última pausa.
+
+        if (
+          inicioPausa !==
+          null
+        ) {
+          tiempoPausado +=
+            performance.now() -
+            inicioPausa;
+
+          inicioPausa =
+            null;
+        }
+
+
+        const finGrabacion =
+          performance.now();
+
+
+        const duracionReal =
+          inicioGrabacion !==
+          null
+            ? Math.max(
+                1,
+                finGrabacion -
+                  inicioGrabacion -
+                  tiempoPausado
+              )
+            : 1;
+
+
         const tipoFinal =
           recorder.mimeType ||
           mimeType ||
           chunks[0]?.type ||
           "audio/webm";
 
-        const blob =
+
+        const blobOriginal =
           new Blob(
             chunks,
             {
@@ -176,15 +261,73 @@ export const crearGrabadorAudio =
             }
           );
 
+
+        let blobFinal =
+          blobOriginal;
+
+
+        // =================================================
+        // CORREGIR METADATA WEBM
+        // =================================================
+
+        try {
+          const esWebM =
+            tipoFinal
+              .toLowerCase()
+              .includes(
+                "webm"
+              );
+
+
+          if (
+            esWebM &&
+            blobOriginal.size >
+              0
+          ) {
+            blobFinal =
+              await fixWebmDuration(
+                blobOriginal,
+                duracionReal,
+                {
+                  logger:
+                    false,
+                }
+              );
+          }
+
+        } catch (error) {
+          /*
+            Si por alguna razón falla
+            la corrección de metadata,
+            NO perdemos la grabación.
+
+            Guardamos el Blob original.
+          */
+
+          console.error(
+            "No se pudo corregir la duración del WebM:",
+            error
+          );
+
+          blobFinal =
+            blobOriginal;
+        }
+
+
         cambiarEstado(
           "finalizado"
         );
 
+
         onFinal?.(
-          blob
+          blobFinal
         );
       };
 
+
+    // =====================================================
+    // CONTROLES
+    // =====================================================
 
     const iniciar =
       (
@@ -241,6 +384,23 @@ export const crearGrabadorAudio =
         cambiarEstado(
           "deteniendo"
         );
+
+
+        /*
+          Pedimos el último fragmento antes
+          de detener el MediaRecorder.
+
+          ondataavailable puede dispararse
+          una vez más antes de onstop.
+        */
+
+        try {
+          recorder.requestData();
+        } catch {
+          // Algunos navegadores pueden
+          // rechazar requestData al detener.
+        }
+
 
         recorder.stop();
       };
