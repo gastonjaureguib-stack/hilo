@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 
 import {
   obtenerClasesTerminadas,
+  eliminarClaseTerminada,
 } from "../utils/hiloStorage.js";
 
 import "../styles/apuntes.css";
@@ -217,6 +218,51 @@ const Apuntes = () => {
     navigate(
       `/clases/${clase.id}`
     );
+  };
+
+  // =========================================================
+  // ELIMINAR CLASE
+  // =========================================================
+
+  const eliminarClase = async (clase) => {
+    if (!clase?.id) {
+      return;
+    }
+
+    const nombre =
+      clase.clase?.nombre ||
+      "esta clase";
+
+    const confirmar =
+      window.confirm(
+        `¿Querés eliminar "${nombre}"?\n\nEsta acción no se puede deshacer.`
+      );
+
+    if (!confirmar) {
+      return;
+    }
+
+    try {
+      await eliminarClaseTerminada(
+        clase.id
+      );
+
+      setClases((prev) =>
+        prev.filter(
+          (item) =>
+            item.id !== clase.id
+        )
+      );
+    } catch (error) {
+      console.error(
+        "No se pudo eliminar la clase:",
+        error
+      );
+
+      window.alert(
+        "No pudimos eliminar la clase."
+      );
+    }
   };
 
   return (
@@ -525,19 +571,27 @@ const Apuntes = () => {
                       </div>
                     </div>
 
-                    {/* ACCIÓN */}
+                    {/* ACCIONES */}
 
                     <div className="class-note-action">
                       <button
                         type="button"
                         className="btn btn-secondary"
                         onClick={() =>
-                          abrirClase(
-                            clase
-                          )
+                          abrirClase(clase)
                         }
                       >
                         Abrir clase →
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={() =>
+                          eliminarClase(clase)
+                        }
+                      >
+                        Eliminar
                       </button>
                     </div>
                   </article>

@@ -719,3 +719,49 @@ export const obtenerClaseTerminada =
       }
     );
   };
+
+  // =========================================================
+// ELIMINAR CLASE DE APUNTES
+// =========================================================
+
+export const eliminarClaseTerminada = async (id) => {
+  if (!id) {
+    throw new Error(
+      "Se necesita el ID de la clase para eliminarla."
+    );
+  }
+
+  const db = await abrirDB();
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(
+      STORE_CLASES_GUARDADAS,
+      "readwrite"
+    );
+
+    const store = transaction.objectStore(
+      STORE_CLASES_GUARDADAS
+    );
+
+    store.delete(id);
+
+    transaction.oncomplete = () => {
+      db.close();
+      resolve(true);
+    };
+
+    transaction.onerror = () => {
+      const error = transaction.error;
+
+      db.close();
+      reject(error);
+    };
+
+    transaction.onabort = () => {
+      const error = transaction.error;
+
+      db.close();
+      reject(error);
+    };
+  });
+};
