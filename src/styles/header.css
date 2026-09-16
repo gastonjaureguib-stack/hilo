@@ -53,6 +53,8 @@ header nav {
   align-items: center;
 
   gap: 30px;
+
+  margin-left: auto;
 }
 
 
@@ -111,8 +113,265 @@ header nav a:hover::after {
 
 
 /* =========================================================
+   AUTENTICACIÓN
+========================================================= */
+
+.header-auth {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+
+  flex-shrink: 0;
+
+  min-width: 125px;
+
+  justify-content: flex-end;
+}
+
+
+/* =========================================================
+   INICIAR SESIÓN
+========================================================= */
+
+.header-login {
+  display: inline-flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-height: 40px;
+
+  padding: 8px 17px;
+
+  border:
+    1px solid
+    var(--color-primary);
+
+  border-radius: 10px;
+
+  color:
+    var(--color-primary);
+
+  background: #ffffff;
+
+  font-size: 0.88rem;
+
+  font-weight: 700;
+
+  white-space: nowrap;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+
+.header-login:hover {
+  background:
+    var(--color-primary);
+
+  color: #ffffff;
+
+  transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   USUARIO
+========================================================= */
+
+.header-user {
+  position: relative;
+}
+
+
+.header-user-button {
+  min-height: 40px;
+
+  padding: 8px 12px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  border: 0;
+
+  border-radius: 10px;
+
+  background: transparent;
+
+  color: #514c48;
+
+  font-family: inherit;
+
+  font-size: 0.88rem;
+
+  font-weight: 700;
+
+  white-space: nowrap;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+
+.header-user-button:hover {
+  color:
+    var(--color-primary);
+
+  background:
+    rgba(0, 0, 0, 0.035);
+}
+
+
+/* FLECHA */
+
+.header-user-arrow {
+  display: inline-block;
+
+  font-size: 0.78rem;
+
+  transition:
+    transform 0.2s ease;
+}
+
+
+.header-user-arrow.open {
+  transform: rotate(180deg);
+}
+
+
+/* =========================================================
+   MENÚ DEL USUARIO
+========================================================= */
+
+.header-user-menu {
+  position: absolute;
+
+  top: calc(100% + 10px);
+  right: 0;
+
+  width: 190px;
+
+  padding: 7px;
+
+  display: flex;
+  flex-direction: column;
+
+  gap: 3px;
+
+  background: #ffffff;
+
+  border:
+    1px solid
+    var(--color-border);
+
+  border-radius: 12px;
+
+  box-shadow:
+    0 12px 35px
+    rgba(0, 0, 0, 0.12);
+
+  z-index: 300;
+}
+
+
+.header-menu-item {
+  width: 100%;
+
+  padding: 10px 11px;
+
+  border: 0;
+
+  border-radius: 8px;
+
+  background: transparent;
+
+  color: #514c48;
+
+  font-family: inherit;
+
+  font-size: 0.86rem;
+
+  font-weight: 650;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
+}
+
+
+.header-menu-item:hover {
+  background:
+    rgba(0, 0, 0, 0.045);
+
+  color:
+    var(--color-primary);
+}
+
+
+/* CERRAR SESIÓN */
+
+.header-logout {
+  margin-top: 3px;
+
+  border-top:
+    1px solid
+    var(--color-border);
+
+  border-radius:
+    0 0 8px 8px;
+
+  color: #9b3f3f;
+}
+
+
+.header-logout:hover {
+  color: #842f2f;
+
+  background:
+    rgba(155, 63, 63, 0.07);
+}
+
+
+/* =========================================================
    TABLET
 ========================================================= */
+
+@media (max-width: 900px) {
+
+  header {
+    gap: 22px;
+  }
+
+
+  header nav {
+    gap: 20px;
+  }
+
+
+  .header-auth {
+    min-width: auto;
+  }
+
+
+  .header-user-button {
+    padding:
+      8px 9px;
+  }
+}
+
 
 @media (max-width: 750px) {
 
@@ -123,7 +382,7 @@ header nav a:hover::after {
       10px
       4%;
 
-    gap: 20px;
+    gap: 15px;
   }
 
 
@@ -138,6 +397,8 @@ header nav a:hover::after {
     overflow-x: auto;
 
     scrollbar-width: none;
+
+    margin-left: 0;
   }
 
 
@@ -150,6 +411,19 @@ header nav a:hover::after {
     font-size: 0.84rem;
 
     flex-shrink: 0;
+  }
+
+
+  .header-login {
+    padding:
+      7px 11px;
+
+    font-size: 0.8rem;
+  }
+
+
+  .header-user-button {
+    font-size: 0.8rem;
   }
 }
 
@@ -180,5 +454,20 @@ header nav a:hover::after {
     width: 100%;
 
     padding-bottom: 3px;
+  }
+
+
+  .header-auth {
+    position: absolute;
+
+    top: 18px;
+    right: 4%;
+  }
+
+
+  .header-user-menu {
+    right: 0;
+
+    width: 180px;
   }
 }

@@ -5,12 +5,15 @@ import {
   useState,
 } from "react";
 
+import { useAuth } from "./AuthContext.jsx";
+
 import {
   guardarClaseLocal,
   obtenerClaseLocal,
   borrarChunksAudio,
   obtenerChunksAudio,
   guardarClaseTerminada,
+  migrarDatosLegacy,
 } from "../utils/hiloStorage.js";
 
 import {
@@ -27,6 +30,11 @@ import {
   relojClase,
 } from "../services/classClock.js";
 
+import {
+  crearClase,
+  finalizarClaseRemota,
+} from "../services/classesService.js";
+
 
 const HiloContext =
   createContext();
@@ -35,12 +43,23 @@ const HiloContext =
 const crearId = () => {
   if (
     typeof crypto !== "undefined" &&
-    crypto.randomUUID
+    typeof crypto.randomUUID === "function"
   ) {
     return crypto.randomUUID();
   }
 
-  return `${Date.now()}-${Math.random()}`;
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+    /[xy]/g,
+    (caracter) => {
+      const random = (Math.random() * 16) | 0;
+      const valor =
+        caracter === "x"
+          ? random
+          : (random & 0x3) | 0x8;
+
+      return valor.toString(16);
+    }
+  );
 };
 
 
@@ -76,6 +95,12 @@ const estadoInicial = {
 export const HiloProvider = ({
   children,
 }) => {
+  
+const {
+    user,
+    loading: cargandoAuth,
+  } = useAuth();
+
   const [
     hiloActual,
     setHiloActual,
@@ -90,198 +115,100 @@ export const HiloProvider = ({
 
 
   // =========================================================
-  // RECUPERAR CLASE
+  // RECUPERAR CLASE DEL USUARIO
   // =========================================================
 
   useEffect(() => {
-    const recuperarClase =
-      async () => {
-        try {
-          const claseGuardada =
-            await obtenerClaseLocal();
+    if (cargandoAuth) return;
 
-          const chunksGuardados =
-            await obtenerChunksAudio();
+    let cancelado = false;
 
+    const recuperarClase = async () => {
+      setCargandoHilo(true);
 
-          if (!claseGuardada) {
-            relojClase.reiniciar();
-            return;
-          }
+      if (!user?.id) {
+        relojClase.reiniciar();
+        if (!cancelado) {
+          setHiloActual(estadoInicial);
+          setCargandoHilo(false);
+        }
+        return;
+      }
 
+      try {
+        await migrarDatosLegacy(user.id);
 
-          let claseRecuperada = {
-            ...estadoInicial,
-            ...claseGuardada,
+        const claseGuardada = await obtenerClaseLocal(user.id);
+        const chunksGuardados = await obtenerChunksAudio(user.id);
 
-            id:
-              claseGuardada.id ||
-              crearId(),
+        if (cancelado) return;
 
-            clase: {
-              ...estadoInicial.clase,
-              ...claseGuardada.clase,
-            },
+        if (!claseGuardada) {
+          relojClase.reiniciar();
+          setHiloActual(estadoInicial);
+          return;
+        }
 
-            transcripcion:
-              claseGuardada
-                .transcripcion ||
-              [],
+        let claseRecuperada = {
+          ...estadoInicial,
+          ...claseGuardada,
+          id: claseGuardada.id || crearId(),
+          clase: { ...estadoInicial.clase, ...claseGuardada.clase },
+          transcripcion: claseGuardada.transcripcion || [],
+          notas: claseGuardada.notas || [],
+          preguntas: claseGuardada.preguntas || [],
+          importantes: claseGuardada.importantes || [],
+          noEntendi: claseGuardada.noEntendi || [],
+          branches: claseGuardada.branches || [],
+        };
 
-            notas:
-              claseGuardada.notas ||
-              [],
+        if (claseGuardada.reloj) relojClase.restaurar(claseGuardada.reloj);
+        else relojClase.reiniciar();
 
-            preguntas:
-              claseGuardada
-                .preguntas ||
-              [],
-
-            importantes:
-              claseGuardada
-                .importantes ||
-              [],
-
-            noEntendi:
-              claseGuardada
-                .noEntendi ||
-              [],
-
-            branches:
-              claseGuardada
-                .branches ||
-              [],
+        if (claseGuardada.audio?.blob?.size > 0) {
+          const url = URL.createObjectURL(claseGuardada.audio.blob);
+          claseRecuperada = {
+            ...claseRecuperada,
+            audio: { ...claseGuardada.audio, url },
           };
+        } else if (chunksGuardados.length > 0) {
+          const blobs = chunksGuardados
+            .sort((a, b) => a.createdAt - b.createdAt)
+            .map((item) => item.blob)
+            .filter(Boolean);
 
-
-          if (
-            claseGuardada.reloj
-          ) {
-            relojClase.restaurar(
-              claseGuardada.reloj
-            );
-          } else {
-            relojClase.reiniciar();
-          }
-
-
-          // ===================================================
-          // RECUPERAR AUDIO TERMINADO
-          // ===================================================
-
-          if (
-            claseGuardada.audio
-              ?.blob &&
-            claseGuardada.audio
-              .blob.size > 0
-          ) {
-            const url =
-              URL.createObjectURL(
-                claseGuardada
-                  .audio.blob
-              );
-
-
+          if (blobs.length > 0) {
+            const tipo = blobs[0].type || "audio/webm";
+            const audioRecuperado = new Blob(blobs, { type: tipo });
+            const url = URL.createObjectURL(audioRecuperado);
             claseRecuperada = {
               ...claseRecuperada,
-
               audio: {
-                ...claseGuardada.audio,
+                blob: audioRecuperado,
                 url,
+                tipo,
+                tamaño: audioRecuperado.size,
+                recuperado: true,
               },
             };
           }
-
-          // ===================================================
-          // RECUPERAR AUDIO DESDE CHUNKS
-          // ===================================================
-
-          else if (
-            chunksGuardados.length >
-            0
-          ) {
-            const blobs =
-              chunksGuardados
-                .sort(
-                  (
-                    a,
-                    b
-                  ) =>
-                    a.createdAt -
-                    b.createdAt
-                )
-                .map(
-                  (item) =>
-                    item.blob
-                )
-                .filter(Boolean);
-
-
-            if (
-              blobs.length > 0
-            ) {
-              const tipo =
-                blobs[0].type ||
-                "audio/webm";
-
-
-              const audioRecuperado =
-                new Blob(
-                  blobs,
-                  {
-                    type: tipo,
-                  }
-                );
-
-
-              const url =
-                URL.createObjectURL(
-                  audioRecuperado
-                );
-
-
-              claseRecuperada = {
-                ...claseRecuperada,
-
-                audio: {
-                  blob:
-                    audioRecuperado,
-
-                  url,
-
-                  tipo,
-
-                  tamaño:
-                    audioRecuperado
-                      .size,
-
-                  recuperado:
-                    true,
-                },
-              };
-            }
-          }
-
-
-          setHiloActual(
-            claseRecuperada
-          );
-
-        } catch (error) {
-          console.error(
-            "No se pudo recuperar la clase:",
-            error
-          );
-        } finally {
-          setCargandoHilo(
-            false
-          );
         }
-      };
 
+        if (!cancelado) setHiloActual(claseRecuperada);
+      } catch (error) {
+        console.error("No se pudo recuperar la clase del usuario:", error);
+        if (!cancelado) {
+          relojClase.reiniciar();
+          setHiloActual(estadoInicial);
+        }
+      } finally {
+        if (!cancelado) setCargandoHilo(false);
+      }
+    };
 
     recuperarClase();
-  }, []);
+    return () => { cancelado = true; };
+  }, [user?.id, cargandoAuth]);
 
 
   // =========================================================
@@ -289,36 +216,24 @@ export const HiloProvider = ({
   // =========================================================
 
   useEffect(() => {
-    if (cargandoHilo) {
-      return;
-    }
+    if (cargandoAuth || cargandoHilo || !user?.id) return;
 
-
-    const guardar =
-      async () => {
-        try {
-          await guardarClaseLocal({
+    const guardar = async () => {
+      try {
+        await guardarClaseLocal(
+          {
             ...hiloActual,
-
-            reloj:
-              relojClase
-                .obtenerSnapshot(),
-          });
-        } catch (error) {
-          console.error(
-            "No se pudo guardar la clase localmente:",
-            error
-          );
-        }
-      };
-
+            reloj: relojClase.obtenerSnapshot(),
+          },
+          user.id
+        );
+      } catch (error) {
+        console.error("No se pudo guardar la clase localmente:", error);
+      }
+    };
 
     guardar();
-
-  }, [
-    hiloActual,
-    cargandoHilo,
-  ]);
+  }, [hiloActual, cargandoHilo, cargandoAuth, user?.id]);
 
 
   // =========================================================
@@ -337,10 +252,14 @@ export const HiloProvider = ({
   // =========================================================
 
   const iniciarNuevaClase =
-    (datosClase) => {
-      if (
-        hiloActual.audio?.url
-      ) {
+    async (datosClase) => {
+      if (!user?.id) {
+        throw new Error(
+          "Tenés que iniciar sesión para comenzar una clase."
+        );
+      }
+
+      if (hiloActual.audio?.url) {
         try {
           URL.revokeObjectURL(
             hiloActual.audio.url
@@ -353,58 +272,44 @@ export const HiloProvider = ({
         }
       }
 
-
-      borrarChunksAudio()
-        .catch(
-          (error) => {
-            console.error(
-              "No se pudieron borrar los chunks anteriores:",
-              error
-            );
-          }
+      try {
+        await borrarChunksAudio(
+          user.id
         );
+      } catch (error) {
+        console.error(
+          "No se pudieron borrar los chunks anteriores:",
+          error
+        );
+      }
 
+      const id = crearId();
+      const ahora =
+        new Date().toISOString();
 
       relojClase.iniciar();
 
+      const nuevaClase = {
+        id,
 
-      const ahora =
-        new Date()
-          .toISOString();
+        estado: "enClase",
 
-
-      setHiloActual({
-        id:
-          crearId(),
-
-        estado:
-          "enClase",
-
-        iniciadaEn:
-          ahora,
-
-        finalizadaEn:
-          null,
-
-        duracionSegundos:
-          0,
+        iniciadaEn: ahora,
+        finalizadaEn: null,
+        duracionSegundos: 0,
 
         reloj:
-          relojClase
-            .obtenerSnapshot(),
+          relojClase.obtenerSnapshot(),
 
         clase: {
           nombre:
-            datosClase.nombre ||
-            "",
+            datosClase.nombre || "",
 
           tema:
-            datosClase.tema ||
-            "",
+            datosClase.tema || "",
 
           docente:
-            datosClase.docente ||
-            "",
+            datosClase.docente || "",
         },
 
         transcripcion: [],
@@ -415,9 +320,50 @@ export const HiloProvider = ({
         noEntendi: [],
         branches: [],
 
-        audio:
-          null,
-      });
+        audio: null,
+      };
+
+      // Primero queda activa localmente.
+      // Si Supabase falla, la clase puede continuar.
+      setHiloActual(
+        nuevaClase
+      );
+
+      try {
+        await crearClase({
+          id,
+
+          userId:
+            user.id,
+
+          nombre:
+            nuevaClase.clase.nombre,
+
+          tema:
+            nuevaClase.clase.tema,
+
+          docente:
+            nuevaClase.clase.docente,
+
+          estado:
+            "enClase",
+
+          iniciadaEn:
+            ahora,
+        });
+
+        console.log(
+          "Clase creada en Supabase:",
+          id
+        );
+      } catch (error) {
+        console.error(
+          "La clase comenzó localmente, pero todavía no pudo sincronizarse con Supabase:",
+          error
+        );
+      }
+
+      return nuevaClase;
     };
 
 
@@ -449,7 +395,8 @@ export const HiloProvider = ({
       try {
         const claseGuardada =
           await guardarClaseTerminada(
-            claseParaGuardar
+            claseParaGuardar,
+            user.id
           );
 
 
@@ -529,6 +476,12 @@ export const HiloProvider = ({
 
   const finalizarClase =
     async () => {
+      if (!user?.id) {
+        throw new Error(
+          "Tenés que iniciar sesión para finalizar una clase."
+        );
+      }
+
       const duracion =
         relojClase.finalizar();
 
@@ -540,60 +493,58 @@ export const HiloProvider = ({
         hiloActual.id ||
         crearId();
 
-
       const claseTerminada = {
         ...hiloActual,
-
         id,
-
-        estado:
-          "taller",
-
-        finalizadaEn:
-          ahora,
-
-        duracionSegundos:
-          duracion,
-
+        estado: "taller",
+        finalizadaEn: ahora,
+        duracionSegundos: duracion,
         reloj:
-          relojClase
-            .obtenerSnapshot(),
-
-        guardadaEn:
-          ahora,
+          relojClase.obtenerSnapshot(),
+        guardadaEn: ahora,
       };
 
-
       try {
+        // Finalizar también significa guardar automáticamente en Apuntes.
         const claseGuardada =
           await guardarClaseTerminada(
-            claseTerminada
+            claseTerminada,
+            user.id
           );
-
 
         setHiloActual(
           claseGuardada
         );
 
+        // Actualizamos la misma clase en Supabase.
+        // Si falla la red, el guardado local de Apuntes se conserva.
+        try {
+          await finalizarClaseRemota({
+            claseId: id,
+            userId: user.id,
+            duracionSegundos: duracion,
+            finalizadaEn: ahora,
+          });
+        } catch (errorSupabase) {
+          console.error(
+            "La clase quedó guardada en Apuntes, pero no se pudo actualizar todavía en Supabase:",
+            errorSupabase
+          );
+        }
 
         return claseGuardada;
 
       } catch (error) {
         console.error(
-          "No se pudo guardar la clase terminada:",
+          "No se pudo guardar la clase terminada en Apuntes:",
           error
         );
-
-
-        // Aunque falle el histórico,
-        // mantenemos toda la clase.
 
         setHiloActual(
           claseTerminada
         );
 
-
-        return claseTerminada;
+        throw error;
       }
     };
 

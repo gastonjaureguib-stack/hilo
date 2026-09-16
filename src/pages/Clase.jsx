@@ -31,7 +31,6 @@ const Clase = () => {
   const {
     hiloActual,
     iniciarNuevaClase,
-    guardarClaseEnApuntes,
     finalizarClase,
     agregarNota,
     agregarImportante,
@@ -112,16 +111,6 @@ const Clase = () => {
   const [
     nombreBranch,
     setNombreBranch,
-  ] = useState("");
-
-  const [
-    guardandoClase,
-    setGuardandoClase,
-  ] = useState(false);
-
-  const [
-    mensajeGuardado,
-    setMensajeGuardado,
   ] = useState("");
 
   const [
@@ -341,43 +330,6 @@ const Clase = () => {
       );
 
       setNombreBranch("");
-    };
-
-
-  const guardarClaseManual =
-    async () => {
-      if (guardandoClase) {
-        return;
-      }
-
-      setGuardandoClase(true);
-      setMensajeGuardado("");
-
-      try {
-        await guardarClaseEnApuntes();
-
-        setMensajeGuardado(
-          "✓ Clase guardada"
-        );
-
-        window.setTimeout(
-          () => {
-            setMensajeGuardado("");
-          },
-          2500
-        );
-      } catch (error) {
-        console.error(
-          "No se pudo guardar la clase:",
-          error
-        );
-
-        setMensajeGuardado(
-          "⚠ No se pudo guardar"
-        );
-      } finally {
-        setGuardandoClase(false);
-      }
     };
 
 
@@ -820,44 +772,17 @@ const Clase = () => {
 
           <button
             type="button"
-            className="console-finish console-save"
-            onClick={
-              guardarClaseManual
-            }
-            disabled={
-              guardandoClase ||
-              finalizando
-            }
-          >
-            {
-              guardandoClase
-                ? "Guardando..."
-                : "💾 Guardar clase"
-            }
-          </button>
-
-          {
-            mensajeGuardado && (
-              <span className="console-save-feedback">
-                {mensajeGuardado}
-              </span>
-            )
-          }
-
-          <button
-            type="button"
             className="console-finish"
             onClick={
               terminarClase
             }
             disabled={
-              finalizando ||
-              guardandoClase
+              finalizando
             }
           >
             {
               finalizando
-                ? "Finalizando..."
+                ? "Guardando y finalizando..."
                 : "Finalizar clase"
             }
           </button>

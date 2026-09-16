@@ -6,6 +6,8 @@ import {
 
 import { useNavigate } from "react-router-dom";
 
+import { useAuth } from "../context/AuthContext.jsx";
+
 import {
   obtenerClasesTerminadas,
   eliminarClaseTerminada,
@@ -15,6 +17,11 @@ import "../styles/apuntes.css";
 
 const Apuntes = () => {
   const navigate = useNavigate();
+
+  const {
+    user,
+    loading: cargandoAuth,
+  } = useAuth();
 
   const [clases, setClases] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -28,31 +35,62 @@ const Apuntes = () => {
   // =========================================================
 
   useEffect(() => {
+    if (cargandoAuth) {
+      return;
+    }
+
+    let cancelado = false;
+
     const cargarClases = async () => {
       try {
         setCargando(true);
         setError("");
 
-        const guardadas =
-          await obtenerClasesTerminadas();
+        if (!user?.id) {
+          if (!cancelado) {
+            setClases([]);
+          }
 
-        setClases(guardadas || []);
+          return;
+        }
+
+        const guardadas =
+          await obtenerClasesTerminadas(
+            user.id
+          );
+
+        if (!cancelado) {
+          setClases(
+            guardadas || []
+          );
+        }
       } catch (error) {
         console.error(
           "No se pudieron cargar los apuntes:",
           error
         );
 
-        setError(
-          "No pudimos cargar tus clases guardadas."
-        );
+        if (!cancelado) {
+          setError(
+            "No pudimos cargar tus clases guardadas."
+          );
+        }
       } finally {
-        setCargando(false);
+        if (!cancelado) {
+          setCargando(false);
+        }
       }
     };
 
     cargarClases();
-  }, []);
+
+    return () => {
+      cancelado = true;
+    };
+  }, [
+    user?.id,
+    cargandoAuth,
+  ]);
 
   // =========================================================
   // FORMATEAR FECHA
@@ -243,8 +281,15 @@ const Apuntes = () => {
     }
 
     try {
+      if (!user?.id) {
+        throw new Error(
+          "No hay un usuario autenticado."
+        );
+      }
+
       await eliminarClaseTerminada(
-        clase.id
+        clase.id,
+        user.id
       );
 
       setClases((prev) =>
