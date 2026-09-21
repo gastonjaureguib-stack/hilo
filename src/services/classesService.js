@@ -2,6 +2,27 @@ import { supabase } from "../lib/supabase.js";
 
 
 // =========================================================
+// TRADUCIR ESTADOS HILO -> SUPABASE
+// =========================================================
+
+const estadoParaSupabase = (estado) => {
+  const mapa = {
+    enClase: "active",
+    taller: "finished",
+    archivado: "archived",
+
+    // También aceptamos directamente
+    // los estados válidos de Supabase.
+    active: "active",
+    finished: "finished",
+    archived: "archived",
+  };
+
+  return mapa[estado] || "active";
+};
+
+
+// =========================================================
 // CREAR CLASE
 // =========================================================
 
@@ -35,12 +56,18 @@ export const crearClase = async ({
       docente?.trim() ||
       null,
 
-    status: estado,
+    // Hilo usa "enClase".
+    // Supabase espera "active".
+    status:
+      estadoParaSupabase(
+        estado
+      ),
 
     started_at:
       iniciadaEn ||
       new Date().toISOString(),
   };
+
 
   /*
    * Si Hilo ya generó un UUID válido,
@@ -49,6 +76,7 @@ export const crearClase = async ({
   if (id) {
     datos.id = id;
   }
+
 
   const {
     data,
@@ -59,9 +87,11 @@ export const crearClase = async ({
     .select()
     .single();
 
+
   if (error) {
     throw error;
   }
+
 
   return data;
 };
@@ -78,6 +108,7 @@ export const obtenerClases = async (
     return [];
   }
 
+
   const {
     data,
     error,
@@ -92,9 +123,11 @@ export const obtenerClases = async (
       }
     );
 
+
   if (error) {
     throw error;
   }
+
 
   return data || [];
 };
@@ -116,19 +149,28 @@ export const obtenerClasePorId =
       return null;
     }
 
+
     const {
       data,
       error,
     } = await supabase
       .from("classes")
       .select("*")
-      .eq("id", claseId)
-      .eq("user_id", userId)
+      .eq(
+        "id",
+        claseId
+      )
+      .eq(
+        "user_id",
+        userId
+      )
       .maybeSingle();
+
 
     if (error) {
       throw error;
     }
+
 
     return data;
   };
@@ -153,7 +195,9 @@ export const actualizarClase =
       );
     }
 
+
     const datos = {};
+
 
     if (
       cambios.nombre !==
@@ -164,6 +208,7 @@ export const actualizarClase =
         "Clase sin nombre";
     }
 
+
     if (
       cambios.tema !==
       undefined
@@ -172,6 +217,7 @@ export const actualizarClase =
         cambios.tema?.trim() ||
         null;
     }
+
 
     if (
       cambios.docente !==
@@ -182,13 +228,17 @@ export const actualizarClase =
         null;
     }
 
+
     if (
       cambios.estado !==
       undefined
     ) {
       datos.status =
-        cambios.estado;
+        estadoParaSupabase(
+          cambios.estado
+        );
     }
+
 
     if (
       cambios.duracionSegundos !==
@@ -205,6 +255,7 @@ export const actualizarClase =
         );
     }
 
+
     if (
       cambios.iniciadaEn !==
       undefined
@@ -212,6 +263,7 @@ export const actualizarClase =
       datos.started_at =
         cambios.iniciadaEn;
     }
+
 
     if (
       cambios.finalizadaEn !==
@@ -221,20 +273,36 @@ export const actualizarClase =
         cambios.finalizadaEn;
     }
 
+
     const {
       data,
       error,
     } = await supabase
       .from("classes")
       .update(datos)
-      .eq("id", claseId)
-      .eq("user_id", userId)
+      .eq(
+        "id",
+        claseId
+      )
+      .eq(
+        "user_id",
+        userId
+      )
       .select()
-      .single();
+      .maybeSingle();
+
 
     if (error) {
       throw error;
     }
+
+
+    if (!data) {
+      throw new Error(
+        "La clase no existe en Supabase o no pertenece al usuario."
+      );
+    }
+
 
     return data;
   };
@@ -255,6 +323,10 @@ export const finalizarClaseRemota =
       claseId,
       userId,
       {
+        // Internamente Hilo puede seguir
+        // llamando "taller" a este estado.
+        // estadoParaSupabase() lo convierte
+        // en "finished".
         estado: "taller",
 
         duracionSegundos,
@@ -285,17 +357,26 @@ export const eliminarClase =
       );
     }
 
+
     const {
       error,
     } = await supabase
       .from("classes")
       .delete()
-      .eq("id", claseId)
-      .eq("user_id", userId);
+      .eq(
+        "id",
+        claseId
+      )
+      .eq(
+        "user_id",
+        userId
+      );
+
 
     if (error) {
       throw error;
     }
+
 
     return true;
   };
