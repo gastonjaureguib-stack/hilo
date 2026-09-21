@@ -1,8 +1,10 @@
 const ASSEMBLY_WS_URL =
   "wss://streaming.assemblyai.com/v3/ws";
 
+// En producción usa la API de Vercel.
+// En local también usa /api/assembly-token.
 const TOKEN_URL =
-  "http://localhost:3001/api/assembly-token";
+  "/api/assembly-token";
 
 const SAMPLE_RATE = 16000;
 
@@ -15,14 +17,28 @@ const SPEECH_MODEL =
 const obtenerTokenTemporal =
   async () => {
     const response =
-      await fetch(
-        TOKEN_URL
-      );
+      await fetch(TOKEN_URL);
 
 
     if (!response.ok) {
+      let mensaje =
+        "No se pudo obtener el token temporal de AssemblyAI.";
+
+      try {
+        const data =
+          await response.json();
+
+        if (data?.error) {
+          mensaje =
+            data.error;
+        }
+      } catch {
+        // Si la respuesta no es JSON,
+        // mantenemos el mensaje original.
+      }
+
       throw new Error(
-        "No se pudo obtener el token temporal de AssemblyAI."
+        mensaje
       );
     }
 
