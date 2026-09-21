@@ -16,10 +16,6 @@ import {
   useClassAudio,
 } from "../hooks/useClassAudio.js";
 
-import {
-  mejorarPregunta,
-} from "../services/questionService.js";
-
 import "../styles/clase.css";
 
 
@@ -72,18 +68,6 @@ const Clase = () => {
 
 
   const [
-    duda,
-    setDuda,
-  ] = useState("");
-
-
-  const [
-    preguntaSugerida,
-    setPreguntaSugerida,
-  ] = useState("");
-
-
-  const [
     mensajeNoEntendi,
     setMensajeNoEntendi,
   ] = useState("");
@@ -104,23 +88,8 @@ const Clase = () => {
   ] = useState(false);
 
   const [
-    mostrandoCrearBranch,
-    setMostrandoCrearBranch,
-  ] = useState(false);
-
-  const [
     nombreBranch,
     setNombreBranch,
-  ] = useState("");
-
-  const [
-    mejorandoPregunta,
-    setMejorandoPregunta,
-  ] = useState(false);
-
-  const [
-    errorPregunta,
-    setErrorPregunta,
   ] = useState("");
 
   const [
@@ -218,7 +187,6 @@ const Clase = () => {
         value,
       } = event.target;
 
-
       setDatosClase(
         (prev) => ({
           ...prev,
@@ -232,14 +200,12 @@ const Clase = () => {
     (event) => {
       event.preventDefault();
 
-
       if (
         !datosClase.nombre
           .trim()
       ) {
         return;
       }
-
 
       iniciarNuevaClase(
         datosClase
@@ -253,11 +219,9 @@ const Clase = () => {
         return;
       }
 
-
       agregarNota(
         nota
       );
-
 
       setNota("");
     };
@@ -302,6 +266,7 @@ const Clase = () => {
       );
     };
 
+
   const branchActivo =
     (hiloActual.branches || [])
       .find(
@@ -315,9 +280,6 @@ const Clase = () => {
       abrirBranch();
 
       setNombreBranch("");
-      setMostrandoCrearBranch(
-        false
-      );
     };
 
 
@@ -325,129 +287,9 @@ const Clase = () => {
     () => {
       cerrarBranch();
 
-      setMostrandoCrearBranch(
-        false
-      );
-
       setNombreBranch("");
     };
 
-
-  const obtenerContextoPregunta =
-    () => {
-      const bloques =
-        hiloActual.transcripcion || [];
-
-      if (bloques.length === 0) {
-        return "";
-      }
-
-      const tiemposValidos =
-        bloques
-          .map((bloque) =>
-            Number(bloque.tiempo)
-          )
-          .filter(
-            (tiempo) =>
-              Number.isFinite(tiempo)
-          );
-
-      if (tiemposValidos.length === 0) {
-        return bloques
-          .slice(-6)
-          .map(
-            (bloque) =>
-              bloque.texto
-          )
-          .filter(Boolean)
-          .join("\n");
-      }
-
-      const ultimoTiempo =
-        Math.max(
-          ...tiemposValidos
-        );
-
-      const desde =
-        Math.max(
-          0,
-          ultimoTiempo - 90
-        );
-
-      return bloques
-        .filter((bloque) => {
-          const tiempo =
-            Number(
-              bloque.tiempoSegundos ??
-              bloque.tiempo
-            );
-
-          return (
-            Number.isFinite(tiempo) &&
-            tiempo >= desde
-          );
-        })
-        .map(
-          (bloque) =>
-            bloque.texto
-        )
-        .filter(Boolean)
-        .join("\n");
-    };
-
-  const prepararPregunta =
-    async () => {
-      if (
-        !duda.trim() ||
-        mejorandoPregunta
-      ) {
-        return;
-      }
-
-      setMejorandoPregunta(
-        true
-      );
-
-      setPreguntaSugerida(
-        ""
-      );
-
-      setErrorPregunta(
-        ""
-      );
-
-      try {
-        const pregunta =
-          await mejorarPregunta({
-            duda:
-              duda.trim(),
-
-            contexto:
-              obtenerContextoPregunta(),
-
-            clase:
-              hiloActual.clase,
-          });
-
-        setPreguntaSugerida(
-          pregunta
-        );
-      } catch (error) {
-        console.error(
-          "No se pudo mejorar la pregunta:",
-          error
-        );
-
-        setErrorPregunta(
-          error?.message ||
-            "No pude mejorar la pregunta ahora."
-        );
-      } finally {
-        setMejorandoPregunta(
-          false
-        );
-      }
-    };
 
   const terminarClase =
     async () => {
@@ -455,11 +297,9 @@ const Clase = () => {
         return;
       }
 
-
       setFinalizando(
         true
       );
-
 
       try {
         if (
@@ -473,9 +313,7 @@ const Clase = () => {
           await detenerAudio();
         }
 
-
         await finalizarClase();
-
 
         navigate(
           "/taller"
@@ -486,7 +324,6 @@ const Clase = () => {
           "No se pudo finalizar la clase:",
           error
         );
-
 
         setFinalizando(
           false
@@ -561,11 +398,9 @@ const Clase = () => {
             NUEVA CLASE
           </span>
 
-
           <h1>
             ¿Qué clase vas a seguir?
           </h1>
-
 
           <p>
             Contale a Hilo qué estás estudiando.
@@ -590,7 +425,6 @@ const Clase = () => {
               Nombre de la clase
             </label>
 
-
             <input
               id="nombre"
               name="nombre"
@@ -614,7 +448,6 @@ const Clase = () => {
               Tema de hoy
             </label>
 
-
             <input
               id="tema"
               name="tema"
@@ -636,7 +469,6 @@ const Clase = () => {
             <label htmlFor="docente">
               Docente
             </label>
-
 
             <input
               id="docente"
@@ -809,7 +641,6 @@ const Clase = () => {
                 TRANSCRIPCIÓN EN VIVO
               </span>
 
-
               <h2>
                 Seguí la clase
               </h2>
@@ -879,7 +710,6 @@ const Clase = () => {
                     Iniciar audio
                   </strong>
 
-
                   <span>
                     Elegí de dónde viene la clase.
                   </span>
@@ -898,7 +728,6 @@ const Clase = () => {
                   <span>
                     💻
                   </span>
-
 
                   <div>
 
@@ -926,7 +755,6 @@ const Clase = () => {
                   <span>
                     🎙️
                   </span>
-
 
                   <div>
 
@@ -1057,11 +885,9 @@ const Clase = () => {
                     ≋
                   </div>
 
-
                   <strong>
                     Transcripción preparada
                   </strong>
-
 
                   <span>
                     El texto aparecerá acá
@@ -1276,6 +1102,7 @@ const Clase = () => {
                               }
                             );
 
+
                           return (
                             <div
                               key={
@@ -1373,6 +1200,7 @@ const Clase = () => {
                                 )
                               }
 
+
                               {
                                 marcasImportantes.map(
                                   (
@@ -1435,6 +1263,7 @@ const Clase = () => {
                                   )
                                 )
                               }
+
                             </div>
                           );
                         }
@@ -1449,7 +1278,6 @@ const Clase = () => {
                         <time>
                           •••
                         </time>
-
 
                         <p>
                           {
@@ -1466,6 +1294,7 @@ const Clase = () => {
             }
 
           </div>
+
 
           {
             !siguiendoVivo &&
@@ -1516,7 +1345,6 @@ const Clase = () => {
                 CONTROLADOR HILO
               </span>
 
-
               <h2>
                 Herramientas
               </h2>
@@ -1533,514 +1361,458 @@ const Clase = () => {
 
           <div className="controller-tools-scroll">
 
-          {/* Perdí el hilo */}
+            {/* Perdí el hilo */}
 
-          <section className="controller-module lost-module">
+            <section className="controller-module lost-module">
 
-            <div className="controller-module-heading">
+              <div className="controller-module-heading">
 
-              <span className="controller-icon">
-                🧵
-              </span>
-
-              <div>
-
-                <strong>
-                  Perdí el hilo
-                </strong>
-
-                <small>
-                  Guarda el último minuto
-                </small>
-
-              </div>
-
-            </div>
-
-
-            <button
-              type="button"
-              className="controller-primary"
-              onClick={
-                marcarNoEntendi
-              }
-            >
-              No entendí
-            </button>
-
-
-            {
-              mensajeNoEntendi && (
-                <span className="controller-feedback">
-                  {mensajeNoEntendi}
+                <span className="controller-icon">
+                  🧵
                 </span>
-              )
-            }
 
-            {(hiloActual.noEntendi || []).length > 0 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMostrarNoEntendi(
-                      (prev) => !prev
-                    )
-                  }
-                  style={{
-                    width: "100%",
-                    marginTop: "8px",
-                    padding: "7px 9px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "8px",
-                    border: "1px solid rgba(255,255,255,.09)",
-                    borderRadius: "9px",
-                    background: "rgba(255,255,255,.035)",
-                    color: "inherit",
-                    fontSize: "0.74rem",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  <span>
-                    {(hiloActual.noEntendi || []).length} para revisar
-                  </span>
-                  <span>
-                    {mostrarNoEntendi ? "▲" : "▼"}
-                  </span>
-                </button>
+                <div>
 
-                {mostrarNoEntendi && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "6px",
-                      maxHeight: "145px",
-                      overflowY: "auto",
-                      marginTop: "7px",
-                    }}
-                  >
-                    {[...(hiloActual.noEntendi || [])]
-                      .reverse()
-                      .map((momento, index) => (
-                        <div
-                          key={momento.id || `no-entendi-panel-${index}`}
-                          style={{
-                            padding: "7px 9px",
-                            borderLeft: "3px solid var(--color-primary)",
-                            borderRadius: "7px",
-                            background: "rgba(255,255,255,.025)",
-                          }}
-                        >
-                          <strong style={{ fontSize: "0.72rem" }}>
-                            🧵 {momento.tiempoTexto || "Momento marcado"}
-                          </strong>
-                          {(momento.contexto || momento.texto) && (
-                            <p
-                              style={{
-                                margin: "4px 0 0",
-                                fontSize: "0.7rem",
-                                lineHeight: 1.35,
-                                opacity: 0.78,
-                              }}
-                            >
-                              {
-                                      typeof momento.contexto === "string"
-                                        ? momento.contexto
-                                        : momento.contexto?.texto ||
-                                          momento.texto ||
-                                          "Sin contexto disponible."
-                                    }
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </>
-            )}
+                  <strong>
+                    Perdí el hilo
+                  </strong>
 
-          </section>
-
-
-          {/* Pregunta */}
-
-          <section className="controller-module question-module">
-
-            <div className="controller-module-heading">
-
-              <span className="controller-icon">
-                💬
-              </span>
-
-
-              <div>
-
-                <strong>
-                  Preguntar al docente
-                </strong>
-
-                <small>
-                  Hilo mejora tu pregunta
-                </small>
-
-              </div>
-
-            </div>
-
-
-            <textarea
-              value={
-                duda
-              }
-              onChange={
-                (event) => {
-                  setDuda(
-                    event.target.value
-                  );
-
-
-                  setPreguntaSugerida(
-                    ""
-                  );
-
-                  setErrorPregunta(
-                    ""
-                  );
-                }
-              }
-              placeholder="Escribí tu duda..."
-            />
-
-
-            <button
-              type="button"
-              className="controller-secondary"
-              onClick={
-                prepararPregunta
-              }
-              disabled={
-                mejorandoPregunta ||
-                !duda.trim()
-              }
-            >
-              {
-                mejorandoPregunta
-                  ? "Mejorando pregunta..."
-                  : "Mejorar pregunta"
-              }
-            </button>
-
-
-            {
-              errorPregunta && (
-                <div className="controller-question-error">
-                  {errorPregunta}
-                </div>
-              )
-            }
-
-            {
-              preguntaSugerida && (
-                <div className="controller-question-result">
-
-                  <span>
-                    PREGUNTA SUGERIDA
-                  </span>
-
-
-                  <p>
-                    {
-                      preguntaSugerida
-                    }
-                  </p>
+                  <small>
+                    Guarda el último minuto
+                  </small>
 
                 </div>
-              )
-            }
-
-          </section>
-
-
-          {/* Importante */}
-
-          <section className="controller-module important-module">
-
-            <div className="controller-module-heading">
-
-              <span className="controller-icon">
-                📌
-              </span>
-
-
-              <div>
-
-                <strong>
-                  Momento importante
-                </strong>
-
-                <small>
-                  Guarda este punto
-                </small>
 
               </div>
 
-            </div>
 
-
-            <button
-              type="button"
-              className="controller-secondary"
-              onClick={
-                marcarImportante
-              }
-            >
-              Marcar importante
-            </button>
-
-
-            {
-              mensajeImportante && (
-                <span className="controller-feedback">
-                  {mensajeImportante}
-                </span>
-              )
-            }
-
-            {(hiloActual.importantes || []).length > 0 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setMostrarImportantes(
-                      (prev) => !prev
-                    )
-                  }
-                  style={{
-                    width: "100%",
-                    marginTop: "8px",
-                    padding: "7px 9px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "8px",
-                    border: "1px solid rgba(255,255,255,.09)",
-                    borderRadius: "9px",
-                    background: "rgba(255,255,255,.035)",
-                    color: "inherit",
-                    fontSize: "0.74rem",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  <span>
-                    {(hiloActual.importantes || []).length} importantes
-                  </span>
-                  <span>
-                    {mostrarImportantes ? "▲" : "▼"}
-                  </span>
-                </button>
-
-                {mostrarImportantes && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "6px",
-                      maxHeight: "145px",
-                      overflowY: "auto",
-                      marginTop: "7px",
-                    }}
-                  >
-                    {[...(hiloActual.importantes || [])]
-                      .reverse()
-                      .map((momento, index) => (
-                        <div
-                          key={momento.id || `importante-panel-${index}`}
-                          style={{
-                            padding: "7px 9px",
-                            borderLeft: "3px solid #b98929",
-                            borderRadius: "7px",
-                            background: "rgba(255,255,255,.025)",
-                          }}
-                        >
-                          <strong style={{ fontSize: "0.72rem" }}>
-                            📌 {momento.tiempoTexto || "Momento marcado"}
-                          </strong>
-                          {(momento.contexto || momento.texto) && (
-                            <p
-                              style={{
-                                margin: "4px 0 0",
-                                fontSize: "0.7rem",
-                                lineHeight: 1.35,
-                                opacity: 0.78,
-                              }}
-                            >
-                              {
-                                      typeof momento.contexto === "string"
-                                        ? momento.contexto
-                                        : momento.contexto?.texto ||
-                                          momento.texto ||
-                                          "Sin contexto disponible."
-                                    }
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </>
-            )}
-
-          </section>
-
-
-          {/* Branch de foco */}
-
-          <section
-            className={`controller-module branch-module ${
-              branchActivo ? "branch-module-active" : ""
-            }`}
-          >
-            <div className="controller-module-heading">
-              <span className="controller-icon">
-                🌿
-              </span>
-
-              <div>
-                <strong>
-                  Branch de foco
-                </strong>
-
-                <small>
-                  Separá un tramo de la explicación
-                </small>
-              </div>
-            </div>
-
-            {branchActivo ? (
-              <div className="branch-active-box">
-                <div className="branch-active-status">
-                  <span className="branch-active-dot" />
-
-                  <span>
-                    BRANCH ACTIVO
-                  </span>
-                </div>
-
-                <small className="branch-active-meta">
-                  Capturando desde{" "}
-                  {branchActivo.inicioTexto || "ahora"}
-                  {" · "}
-                  {(branchActivo.transcripcion || []).length}{" "}
-                  {(branchActivo.transcripcion || []).length === 1
-                    ? "fragmento"
-                    : "fragmentos"}
-                </small>
-
-                <p className="branch-active-help">
-                  Todo lo que se transcriba hasta que lo cierres
-                  quedará guardado en este tramo.
-                </p>
-
-                <button
-                  type="button"
-                  className="controller-secondary branch-close-button"
-                  onClick={finalizarBranch}
-                >
-                  ■ Terminar branch
-                </button>
-              </div>
-            ) : (
               <button
                 type="button"
-                className="controller-secondary branch-open-button"
-                onClick={confirmarAbrirBranch}
+                className="controller-primary"
+                onClick={
+                  marcarNoEntendi
+                }
               >
-                🌿 Abrir branch
+                No entendí
               </button>
-            )}
 
-            {(hiloActual.branches || []).filter(
-              (branch) => !branch.abierto
-            ).length > 0 &&
-              !branchActivo && (
-                <small className="branch-saved-count">
-                  {
-                    (hiloActual.branches || []).filter(
-                      (branch) => !branch.abierto
-                    ).length
-                  }{" "}
-                  {(hiloActual.branches || []).filter(
-                    (branch) => !branch.abierto
-                  ).length === 1
-                    ? "branch guardado"
-                    : "branches guardados"}
-                </small>
+
+              {
+                mensajeNoEntendi && (
+                  <span className="controller-feedback">
+                    {mensajeNoEntendi}
+                  </span>
+                )
+              }
+
+
+              {(hiloActual.noEntendi || []).length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMostrarNoEntendi(
+                        (prev) => !prev
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      marginTop: "8px",
+                      padding: "7px 9px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "8px",
+                      border: "1px solid rgba(255,255,255,.09)",
+                      borderRadius: "9px",
+                      background: "rgba(255,255,255,.035)",
+                      color: "inherit",
+                      fontSize: "0.74rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <span>
+                      {(hiloActual.noEntendi || []).length} para revisar
+                    </span>
+
+                    <span>
+                      {mostrarNoEntendi ? "▲" : "▼"}
+                    </span>
+                  </button>
+
+
+                  {mostrarNoEntendi && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                        maxHeight: "145px",
+                        overflowY: "auto",
+                        marginTop: "7px",
+                      }}
+                    >
+                      {[...(hiloActual.noEntendi || [])]
+                        .reverse()
+                        .map((momento, index) => (
+                          <div
+                            key={
+                              momento.id ||
+                              `no-entendi-panel-${index}`
+                            }
+                            style={{
+                              padding: "7px 9px",
+                              borderLeft:
+                                "3px solid var(--color-primary)",
+                              borderRadius: "7px",
+                              background:
+                                "rgba(255,255,255,.025)",
+                            }}
+                          >
+                            <strong
+                              style={{
+                                fontSize: "0.72rem",
+                              }}
+                            >
+                              🧵 {momento.tiempoTexto || "Momento marcado"}
+                            </strong>
+
+                            {(momento.contexto || momento.texto) && (
+                              <p
+                                style={{
+                                  margin: "4px 0 0",
+                                  fontSize: "0.7rem",
+                                  lineHeight: 1.35,
+                                  opacity: 0.78,
+                                }}
+                              >
+                                {
+                                  typeof momento.contexto === "string"
+                                    ? momento.contexto
+                                    : momento.contexto?.texto ||
+                                      momento.texto ||
+                                      "Sin contexto disponible."
+                                }
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </>
               )}
-          </section>
+
+            </section>
 
 
-          {/* Nota */}
+            {/* Importante */}
 
-          <section className="controller-module note-module">
+            <section className="controller-module important-module">
 
-            <div className="controller-module-heading">
+              <div className="controller-module-heading">
 
-              <span className="controller-icon">
-                📝
-              </span>
+                <span className="controller-icon">
+                  📌
+                </span>
 
+                <div>
 
-              <div>
+                  <strong>
+                    Momento importante
+                  </strong>
 
-                <strong>
-                  Nota rápida
-                </strong>
+                  <small>
+                    Guarda este punto
+                  </small>
 
-                <small>
-                  Algo que quieras recordar
-                </small>
+                </div>
 
               </div>
 
-            </div>
+
+              <button
+                type="button"
+                className="controller-secondary"
+                onClick={
+                  marcarImportante
+                }
+              >
+                Marcar importante
+              </button>
 
 
-            <textarea
-              value={
-                nota
+              {
+                mensajeImportante && (
+                  <span className="controller-feedback">
+                    {mensajeImportante}
+                  </span>
+                )
               }
-              onChange={
-                (event) =>
-                  setNota(
-                    event.target.value
-                  )
-              }
-              placeholder="Escribí una nota..."
-            />
 
 
-            <button
-              type="button"
-              className="controller-secondary"
-              onClick={
-                guardarNota
-              }
+              {(hiloActual.importantes || []).length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMostrarImportantes(
+                        (prev) => !prev
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      marginTop: "8px",
+                      padding: "7px 9px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "8px",
+                      border: "1px solid rgba(255,255,255,.09)",
+                      borderRadius: "9px",
+                      background: "rgba(255,255,255,.035)",
+                      color: "inherit",
+                      fontSize: "0.74rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <span>
+                      {(hiloActual.importantes || []).length} importantes
+                    </span>
+
+                    <span>
+                      {mostrarImportantes ? "▲" : "▼"}
+                    </span>
+                  </button>
+
+
+                  {mostrarImportantes && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                        maxHeight: "145px",
+                        overflowY: "auto",
+                        marginTop: "7px",
+                      }}
+                    >
+                      {[...(hiloActual.importantes || [])]
+                        .reverse()
+                        .map((momento, index) => (
+                          <div
+                            key={
+                              momento.id ||
+                              `importante-panel-${index}`
+                            }
+                            style={{
+                              padding: "7px 9px",
+                              borderLeft:
+                                "3px solid #b98929",
+                              borderRadius: "7px",
+                              background:
+                                "rgba(255,255,255,.025)",
+                            }}
+                          >
+                            <strong
+                              style={{
+                                fontSize: "0.72rem",
+                              }}
+                            >
+                              📌 {momento.tiempoTexto || "Momento marcado"}
+                            </strong>
+
+                            {(momento.contexto || momento.texto) && (
+                              <p
+                                style={{
+                                  margin: "4px 0 0",
+                                  fontSize: "0.7rem",
+                                  lineHeight: 1.35,
+                                  opacity: 0.78,
+                                }}
+                              >
+                                {
+                                  typeof momento.contexto === "string"
+                                    ? momento.contexto
+                                    : momento.contexto?.texto ||
+                                      momento.texto ||
+                                      "Sin contexto disponible."
+                                }
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+            </section>
+
+
+            {/* Branch de foco */}
+
+            <section
+              className={`controller-module branch-module ${
+                branchActivo
+                  ? "branch-module-active"
+                  : ""
+              }`}
             >
-              Guardar nota
-            </button>
+              <div className="controller-module-heading">
 
-          </section>
+                <span className="controller-icon">
+                  🌿
+                </span>
+
+                <div>
+
+                  <strong>
+                    Branch de foco
+                  </strong>
+
+                  <small>
+                    Separá un tramo de la explicación
+                  </small>
+
+                </div>
+
+              </div>
+
+
+              {branchActivo ? (
+                <div className="branch-active-box">
+
+                  <div className="branch-active-status">
+
+                    <span className="branch-active-dot" />
+
+                    <span>
+                      BRANCH ACTIVO
+                    </span>
+
+                  </div>
+
+
+                  <small className="branch-active-meta">
+                    Capturando desde{" "}
+                    {branchActivo.inicioTexto || "ahora"}
+                    {" · "}
+                    {(branchActivo.transcripcion || []).length}{" "}
+                    {(branchActivo.transcripcion || []).length === 1
+                      ? "fragmento"
+                      : "fragmentos"}
+                  </small>
+
+
+                  <p className="branch-active-help">
+                    Todo lo que se transcriba hasta que lo cierres
+                    quedará guardado en este tramo.
+                  </p>
+
+
+                  <button
+                    type="button"
+                    className="controller-secondary branch-close-button"
+                    onClick={
+                      finalizarBranch
+                    }
+                  >
+                    ■ Terminar branch
+                  </button>
+
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="controller-secondary branch-open-button"
+                  onClick={
+                    confirmarAbrirBranch
+                  }
+                >
+                  🌿 Abrir branch
+                </button>
+              )}
+
+
+              {(hiloActual.branches || []).filter(
+                (branch) => !branch.abierto
+              ).length > 0 &&
+                !branchActivo && (
+                  <small className="branch-saved-count">
+                    {
+                      (hiloActual.branches || []).filter(
+                        (branch) => !branch.abierto
+                      ).length
+                    }{" "}
+                    {(hiloActual.branches || []).filter(
+                      (branch) => !branch.abierto
+                    ).length === 1
+                      ? "branch guardado"
+                      : "branches guardados"}
+                  </small>
+                )}
+
+            </section>
+
+
+            {/* Nota */}
+
+            <section className="controller-module note-module">
+
+              <div className="controller-module-heading">
+
+                <span className="controller-icon">
+                  📝
+                </span>
+
+                <div>
+
+                  <strong>
+                    Nota rápida
+                  </strong>
+
+                  <small>
+                    Algo que quieras recordar
+                  </small>
+
+                </div>
+
+              </div>
+
+
+              <textarea
+                value={
+                  nota
+                }
+                onChange={
+                  (event) =>
+                    setNota(
+                      event.target.value
+                    )
+                }
+                placeholder="Escribí una nota..."
+              />
+
+
+              <button
+                type="button"
+                className="controller-secondary"
+                onClick={
+                  guardarNota
+                }
+              >
+                Guardar nota
+              </button>
+
+            </section>
 
           </div>
 
         </aside>
 
       </div>
-
 
     </section>
   );
