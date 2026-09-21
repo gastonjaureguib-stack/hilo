@@ -27,6 +27,10 @@ import {
   useHilo,
 } from "../context/HiloContext.jsx";
 
+import {
+  useAuth,
+} from "../context/AuthContext.jsx";
+
 
 export const useClassAudio = ({
   onAudioFinalizado,
@@ -37,6 +41,10 @@ export const useClassAudio = ({
     pausarRelojClase,
     reanudarRelojClase,
   } = useHilo();
+
+  const {
+    user,
+  } = useAuth();
 
 
   const sourceStreamRef =
@@ -163,7 +171,9 @@ export const useClassAudio = ({
     };
 
 
-  // Crear grabación local
+  // =========================================================
+  // CREAR GRABACIÓN LOCAL
+  // =========================================================
 
   const iniciarGrabador =
     (stream) => {
@@ -175,8 +185,18 @@ export const useClassAudio = ({
           onChunk: (
             chunk
           ) => {
+            if (!user?.id) {
+              console.error(
+                "No se pudo guardar el chunk: no hay usuario autenticado."
+              );
+
+              return;
+            }
+
+
             guardarChunkAudio(
-              chunk
+              chunk,
+              user.id
             ).catch(
               (error) => {
                 console.error(
@@ -264,7 +284,9 @@ export const useClassAudio = ({
     };
 
 
-  // Iniciar transcripción
+  // =========================================================
+  // INICIAR TRANSCRIPCIÓN
+  // =========================================================
 
   const iniciarTranscripcion =
     async (
@@ -395,7 +417,9 @@ export const useClassAudio = ({
     };
 
 
-  // Iniciar desde un stream
+  // =========================================================
+  // INICIAR DESDE UN STREAM
+  // =========================================================
 
   const iniciarDesdeStream =
     async ({
@@ -458,13 +482,24 @@ export const useClassAudio = ({
     };
 
 
-  // Micrófono
+  // =========================================================
+  // MICRÓFONO
+  // =========================================================
 
   const iniciarMicrofono =
     async () => {
       if (
         grabadorRef.current
       ) {
+        return;
+      }
+
+
+      if (!user?.id) {
+        setErrorAudio(
+          "Tenés que iniciar sesión para grabar una clase."
+        );
+
         return;
       }
 
@@ -512,13 +547,24 @@ export const useClassAudio = ({
     };
 
 
-  // Audio de computadora
+  // =========================================================
+  // AUDIO DE COMPUTADORA
+  // =========================================================
 
   const iniciarComputadora =
     async () => {
       if (
         grabadorRef.current
       ) {
+        return;
+      }
+
+
+      if (!user?.id) {
+        setErrorAudio(
+          "Tenés que iniciar sesión para grabar una clase."
+        );
+
         return;
       }
 
@@ -575,7 +621,9 @@ export const useClassAudio = ({
     };
 
 
-  // Pausar
+  // =========================================================
+  // PAUSAR
+  // =========================================================
 
   const pausarAudio =
     async () => {
@@ -612,7 +660,9 @@ export const useClassAudio = ({
     };
 
 
-  // Reanudar
+  // =========================================================
+  // REANUDAR
+  // =========================================================
 
   const reanudarAudio =
     async () => {
@@ -649,7 +699,9 @@ export const useClassAudio = ({
     };
 
 
-  // Detener
+  // =========================================================
+  // DETENER
+  // =========================================================
 
   const detenerAudio =
     async () => {
@@ -762,7 +814,9 @@ export const useClassAudio = ({
     };
 
 
-  // Limpiar al salir
+  // =========================================================
+  // LIMPIAR AL SALIR
+  // =========================================================
 
   useEffect(() => {
     desmontadoRef.current =

@@ -1,5 +1,5 @@
 const API_URL =
-  "http://localhost:3001/api/improve-question";
+  "/api/improve-question";
 
 
 export const mejorarPregunta =
