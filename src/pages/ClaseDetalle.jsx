@@ -14,9 +14,22 @@ import {
   obtenerClaseTerminada,
 } from "../utils/hiloStorage.js";
 
+import {
+  useAuth,
+} from "../context/AuthContext.jsx";
+
+
 const ClaseDetalle = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
+
+  const navigate =
+    useNavigate();
+
+  const {
+    user,
+    loading,
+  } = useAuth();
+
 
   const [clase, setClase] =
     useState(null);
@@ -27,61 +40,116 @@ const ClaseDetalle = () => {
   const [error, setError] =
     useState("");
 
+
   useEffect(() => {
     let activo = true;
 
+
     const cargarClase =
       async () => {
+
+        // Esperamos a que Supabase
+        // termine de recuperar la sesión.
+        if (loading) {
+          return;
+        }
+
+
+        if (!user?.id) {
+          if (activo) {
+            setClase(null);
+
+            setError(
+              "Necesitás iniciar sesión para abrir esta clase."
+            );
+
+            setCargando(false);
+          }
+
+          return;
+        }
+
+
         try {
           setCargando(true);
+
           setError("");
+
 
           const resultado =
             await obtenerClaseTerminada(
-              id
+              id,
+              user.id
             );
+
 
           if (!activo) {
             return;
           }
 
+
           if (!resultado) {
             setClase(null);
+
             setError(
               "No encontramos esta clase guardada."
             );
+
             return;
           }
 
-          setClase(resultado);
+
+          setClase(
+            resultado
+          );
+
         } catch (error) {
+
           console.error(
             "No se pudo cargar la clase guardada:",
             error
           );
 
+
           if (activo) {
+            setClase(null);
+
             setError(
               "No pudimos cargar esta clase."
             );
           }
+
         } finally {
+
           if (activo) {
             setCargando(false);
           }
+
         }
       };
 
+
     cargarClase();
+
 
     return () => {
       activo = false;
     };
-  }, [id]);
 
-  if (cargando) {
+  }, [
+    id,
+    user?.id,
+    loading,
+  ]);
+
+
+  if (
+    loading ||
+    cargando
+  ) {
     return (
       <section className="workshop-empty">
+
         <span className="home-eyebrow">
           MIS APUNTES
         </span>
@@ -89,13 +157,19 @@ const ClaseDetalle = () => {
         <h1>
           Abriendo clase...
         </h1>
+
       </section>
     );
   }
 
-  if (error || !clase) {
+
+  if (
+    error ||
+    !clase
+  ) {
     return (
       <section className="workshop-empty">
+
         <span className="home-eyebrow">
           MIS APUNTES
         </span>
@@ -112,14 +186,18 @@ const ClaseDetalle = () => {
           type="button"
           className="btn btn-primary"
           onClick={() =>
-            navigate("/apuntes")
+            navigate(
+              "/apuntes"
+            )
           }
         >
           Volver a Mis apuntes
         </button>
+
       </section>
     );
   }
+
 
   return (
     <TallerClase
@@ -128,5 +206,6 @@ const ClaseDetalle = () => {
     />
   );
 };
+
 
 export default ClaseDetalle;
