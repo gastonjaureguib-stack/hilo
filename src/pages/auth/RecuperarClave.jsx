@@ -1,7 +1,11 @@
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { supabase } from "../../lib/supabase.js";
+
+const MENSAJE_CONFIRMACION =
+  "Si existe una cuenta asociada a ese correo, recibirás un enlace para cambiar tu contraseña.";
 
 const RecuperarClave = () => {
   const [email, setEmail] = useState("");
@@ -9,72 +13,62 @@ const RecuperarClave = () => {
   const [mensaje, setMensaje] = useState("");
   const [enviando, setEnviando] = useState(false);
 
-  // =========================================================
-  // ENVIAR CORREO DE RECUPERACIÓN
-  // =========================================================
-
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (enviando) return;
 
     setError("");
     setMensaje("");
 
-    const emailLimpio =
-      email.trim().toLowerCase();
+    const emailLimpio = email.trim().toLowerCase();
 
     if (!emailLimpio) {
-      setError(
-        "Ingresá tu correo electrónico."
-      );
-
+      setError("Ingresá tu correo electrónico.");
       return;
     }
 
     try {
       setEnviando(true);
 
-      const redirectTo =
-        `${window.location.origin}/cambiar-clave`;
+      const redirectTo = new URL(
+        "/cambiar-clave",
+        window.location.origin
+      ).toString();
 
-      const { error } =
+      const { error: supabaseError } =
         await supabase.auth.resetPasswordForEmail(
           emailLimpio,
-          {
-            redirectTo,
-          }
+          { redirectTo }
         );
 
-      if (error) {
-        throw error;
+      if (supabaseError) {
+        throw supabaseError;
       }
 
-      /*
-       * No confirmamos si el correo existe.
-       * Es mejor desde el punto de vista de
-       * seguridad no revelar qué emails
-       * tienen una cuenta en Hilo.
-       */
-
-      setMensaje(
-        "Si existe una cuenta asociada a ese correo, recibirás un enlace para cambiar tu contraseña."
-      );
+      setMensaje(MENSAJE_CONFIRMACION);
     } catch (error) {
       console.error(
         "Error recuperando contraseña:",
         error
       );
 
-      setError(
-        "No pudimos enviar el correo de recuperación. Intentá nuevamente."
-      );
+      if (
+        error?.code === "over_email_send_rate_limit" ||
+        error?.code === "over_request_rate_limit"
+      ) {
+        setError(
+          "Demasiados intentos. Esperá unos minutos antes de solicitar otro enlace."
+        );
+      } else {
+        setError(
+          "No pudimos procesar la solicitud. Intentá nuevamente."
+        );
+      }
     } finally {
       setEnviando(false);
     }
   };
-
-  // =========================================================
-  // VISTA
-  // =========================================================
 
   return (
     <main className="auth-page">
@@ -98,9 +92,6 @@ const RecuperarClave = () => {
           className="auth-form"
           onSubmit={handleSubmit}
         >
-
-          {/* EMAIL */}
-
           <div className="auth-field">
             <label htmlFor="recoveryEmail">
               Correo electrónico
@@ -108,19 +99,20 @@ const RecuperarClave = () => {
 
             <input
               id="recoveryEmail"
+              name="email"
               type="email"
               autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              required
               value={email}
-              onChange={(event) =>
-                setEmail(
-                  event.target.value
-                )
-              }
+              onChange={(event) => {
+                setEmail(event.target.value);
+              }}
               placeholder="tu@email.com"
+              disabled={enviando}
             />
           </div>
-
-          {/* ERROR */}
 
           {error && (
             <div
@@ -131,8 +123,6 @@ const RecuperarClave = () => {
             </div>
           )}
 
-          {/* MENSAJE */}
-
           {mensaje && (
             <div
               className="auth-success"
@@ -141,8 +131,6 @@ const RecuperarClave = () => {
               {mensaje}
             </div>
           )}
-
-          {/* ENVIAR */}
 
           <button
             type="submit"

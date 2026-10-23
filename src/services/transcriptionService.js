@@ -1,3 +1,4 @@
+
 import {
   crearConexionAssembly,
   enviarAudioAssembly,
@@ -5,415 +6,357 @@ import {
   forzarCierreAssembly,
 } from "./assemblyService.js";
 
-import {
-  crearProcesadorPCM,
-} from "../audio/pcmProcessor.js";
-
+import { crearProcesadorPCM } from "../audio/pcmProcessor.js";
 
 const ESTADOS = {
-  INACTIVO:
-    "inactivo",
-
-  CONECTANDO:
-    "conectando",
-
-  ACTIVO:
-    "activo",
-
-  PAUSADO:
-    "pausado",
-
-  DETENIENDO:
-    "deteniendo",
-
-  FINALIZADO:
-    "finalizado",
-
-  ERROR:
-    "error",
+  INACTIVO: "inactivo",
+  CONECTANDO: "conectando",
+  ACTIVO: "activo",
+  PAUSADO: "pausado",
+  DETENIENDO: "deteniendo",
+  FINALIZADO: "finalizado",
+  ERROR: "error",
 };
 
+export const crearSesionTranscripcion = async ({
+  stream,
+  onParcial,
+  onFinal,
+  onEstado,
+  onError,
+}) => {
+  if (!stream) {
+    throw new Error(
+      "No se recibió un stream para transcribir."
+    );
+  }
 
-// Crear sesión de transcripción
+  let socket = null;
+  let procesadorPCM = null;
 
-export const crearSesionTranscripcion =
-  async ({
-    stream,
+  let estado = ESTADOS.INACTIVO;
 
-    onParcial,
-    onFinal,
-    onEstado,
-    onError,
-  }) => {
-    if (!stream) {
-      throw new Error(
-        "No se recibió un stream para transcribir."
-      );
+  let deteniendo = false;
+  let detenido = false;
+  let destruido = false;
+
+  let promesaDetencion = null;
+  let promesaDestruccion = null;
+
+  // =======================================================
+  // ESTADO
+  // =======================================================
+
+  const cambiarEstado = (nuevoEstado) => {
+    if (estado === nuevoEstado) return;
+
+    estado = nuevoEstado;
+    onEstado?.(nuevoEstado);
+  };
+
+  // =======================================================
+  // ERRORES
+  // =======================================================
+
+  const manejarError = (error) => {
+    if (
+      destruido ||
+      detenido ||
+      estado === ESTADOS.FINALIZADO
+    ) {
+      return;
     }
 
-
-    let socket =
-      null;
-
-    let procesadorPCM =
-      null;
-
-    let estado =
-      ESTADOS.INACTIVO;
-
-    let detenido =
-      false;
-
-
-    const cambiarEstado =
-      (nuevoEstado) => {
-        estado =
-          nuevoEstado;
-
-        onEstado?.(
-          nuevoEstado
-        );
-      };
-
-
-    const manejarError =
-      (error) => {
-        console.error(
-          "Error de transcripción:",
-          error
-        );
-
-        cambiarEstado(
-          ESTADOS.ERROR
-        );
-
-        onError?.(
-          error
-        );
-      };
-
-
-    cambiarEstado(
-      ESTADOS.CONECTANDO
+    console.error(
+      "Error de transcripción:",
+      error
     );
 
+    cambiarEstado(ESTADOS.ERROR);
+    onError?.(error);
+  };
 
-    // Esperar conexión WebSocket
+  cambiarEstado(ESTADOS.CONECTANDO);
 
-    const conexionLista =
-      new Promise(
-        (
-          resolve,
-          reject
-        ) => {
-          let resuelto =
-            false;
+  // =======================================================
+  // CONECTAR CON ASSEMBLYAI
+  // =======================================================
 
-
-          crearConexionAssembly({
-
-            onOpen: () => {
-              if (resuelto) {
-                return;
-              }
-
-              resuelto =
-                true;
-
-              resolve();
-            },
-
-
-            onPartial: ({
-              texto,
-              data,
-            }) => {
-              onParcial?.({
-                texto,
-                data,
-              });
-            },
-
-
-            onFinal: ({
-              texto,
-              data,
-            }) => {
-              onFinal?.({
-                texto,
-                data,
-              });
-            },
-
-
-            onError: (
-              error
-            ) => {
-              manejarError(
-                error
-              );
-
-
-              if (
-                !resuelto
-              ) {
-                resuelto =
-                  true;
-
-                reject(
-                  error
-                );
-              }
-            },
-
-
-            onClose: () => {
-              if (
-                detenido
-              ) {
-                cambiarEstado(
-                  ESTADOS.FINALIZADO
-                );
-
-                return;
-              }
-
-
-              if (
-                estado !==
-                ESTADOS.ERROR
-              ) {
-                manejarError(
-                  new Error(
-                    "Se perdió la conexión con la transcripción."
-                  )
-                );
-              }
-            },
-
-
-            onTermination: () => {
-              cambiarEstado(
-                ESTADOS.FINALIZADO
-              );
-            },
-
-          })
-            .then(
-              (
-                conexion
-              ) => {
-                socket =
-                  conexion;
-              }
-            )
-            .catch(
-              (
-                error
-              ) => {
-                if (
-                  !resuelto
-                ) {
-                  resuelto =
-                    true;
-
-                  reject(
-                    error
-                  );
-                }
-              }
-            );
+  try {
+    socket = await crearConexionAssembly({
+      onPartial: ({ texto, data }) => {
+        if (
+          destruido ||
+          detenido ||
+          deteniendo
+        ) {
+          return;
         }
-      );
 
+        onParcial?.({ texto, data });
+      },
 
+      onFinal: ({ texto, data }) => {
+        // Permitimos recibir resultados finales
+        // durante el cierre ordenado.
+        if (destruido) return;
+
+        if (texto?.trim()) {
+          onFinal?.({ texto, data });
+        }
+      },
+
+      onError: (error) => {
+        if (!deteniendo && !detenido && !destruido) {
+          manejarError(error);
+        }
+      },
+
+      onClose: () => {
+        if (destruido) return;
+
+        if (deteniendo || detenido) {
+          cambiarEstado(ESTADOS.FINALIZADO);
+          return;
+        }
+
+        if (estado !== ESTADOS.ERROR) {
+          manejarError(
+            new Error(
+              "Se perdió la conexión con la transcripción."
+            )
+          );
+        }
+      },
+
+      onTermination: () => {
+        if (!destruido) {
+          cambiarEstado(ESTADOS.FINALIZADO);
+        }
+      },
+    });
+
+    // =====================================================
+    // CREAR PROCESADOR PCM
+    // =====================================================
+
+    procesadorPCM = await crearProcesadorPCM({
+      stream,
+
+      onAudioData: (audioData) => {
+        // Durante el flush final todavía debemos
+        // enviar los últimos datos PCM.
+        //
+        // Solo bloqueamos el envío cuando el
+        // procesador ya terminó o se destruyó
+        // la sesión.
+        if (detenido || destruido) return;
+
+        enviarAudioAssembly(socket, audioData);
+      },
+
+      onError: (error) => {
+        manejarError(error);
+      },
+    });
+
+    if (!deteniendo && !detenido && !destruido) {
+      cambiarEstado(ESTADOS.ACTIVO);
+    }
+  } catch (error) {
     try {
-      await conexionLista;
-
-
-      // Procesar audio
-
-      procesadorPCM =
-        await crearProcesadorPCM({
-
-          stream,
-
-
-          onAudioData: (
-            audioData
-          ) => {
-            enviarAudioAssembly(
-              socket,
-              audioData
-            );
-          },
-
-
-          onError: (
-            error
-          ) => {
-            manejarError(
-              error
-            );
-          },
-
-        });
-
-
-      cambiarEstado(
-        ESTADOS.ACTIVO
-      );
-
-    } catch (error) {
-      forzarCierreAssembly(
-        socket
-      );
-
-      manejarError(
-        error
-      );
-
-      throw error;
+      await procesadorPCM?.detener();
+    } catch {
+      // Puede no haberse iniciado.
     }
 
+    procesadorPCM = null;
 
-    // Pausar transcripción
+    forzarCierreAssembly(socket);
+    socket = null;
 
-    const pausar =
-      async () => {
-        if (
-          estado !==
-          ESTADOS.ACTIVO
-        ) {
-          return;
-        }
+    manejarError(error);
 
+    throw error;
+  }
 
-        await procesadorPCM
-          ?.pausar();
+  // =======================================================
+  // PAUSAR
+  // =======================================================
 
+  const pausar = async () => {
+    if (
+      deteniendo ||
+      detenido ||
+      destruido ||
+      estado !== ESTADOS.ACTIVO
+    ) {
+      return;
+    }
 
-        cambiarEstado(
-          ESTADOS.PAUSADO
+    await procesadorPCM?.pausar();
+
+    if (!deteniendo && !detenido && !destruido) {
+      cambiarEstado(ESTADOS.PAUSADO);
+    }
+  };
+
+  // =======================================================
+  // REANUDAR
+  // =======================================================
+
+  const reanudar = async () => {
+    if (
+      deteniendo ||
+      detenido ||
+      destruido ||
+      estado !== ESTADOS.PAUSADO
+    ) {
+      return;
+    }
+
+    await procesadorPCM?.reanudar();
+
+    if (!deteniendo && !detenido && !destruido) {
+      cambiarEstado(ESTADOS.ACTIVO);
+    }
+  };
+
+  // =======================================================
+  // DETENER ORDENADAMENTE
+  // =======================================================
+
+  const detener = () => {
+    if (promesaDetencion) {
+      return promesaDetencion;
+    }
+
+    if (destruido) {
+      return Promise.resolve({
+        confirmada: false,
+        motivo: "sesion_destruida",
+      });
+    }
+
+    deteniendo = true;
+
+    cambiarEstado(ESTADOS.DETENIENDO);
+
+    promesaDetencion = (async () => {
+      // PASO 1:
+      // Detener el procesador PCM.
+      //
+      // Este proceso incluye el flush final.
+      // Durante ese flush todavía permitimos
+      // enviar audio a AssemblyAI.
+
+      try {
+        await procesadorPCM?.detener();
+      } catch (error) {
+        console.error(
+          "No se pudo detener el procesador PCM:",
+          error
         );
-      };
+      } finally {
+        procesadorPCM = null;
+        detenido = true;
+      }
 
+      // PASO 2:
+      // Una vez enviado el último fragmento,
+      // solicitar la terminación de AssemblyAI.
 
-    // Reanudar transcripción
+      let resultado;
 
-    const reanudar =
-      async () => {
-        if (
-          estado !==
-          ESTADOS.PAUSADO
-        ) {
-          return;
-        }
-
-
-        await procesadorPCM
-          ?.reanudar();
-
-
-        cambiarEstado(
-          ESTADOS.ACTIVO
+      try {
+        resultado = await terminarConexionAssembly(
+          socket
         );
-      };
-
-
-    // Detener transcripción
-
-    const detener =
-      async () => {
-        if (
-          detenido
-        ) {
-          return;
-        }
-
-
-        detenido =
-          true;
-
-
-        cambiarEstado(
-          ESTADOS.DETENIENDO
+      } catch (error) {
+        console.error(
+          "No se pudo finalizar AssemblyAI:",
+          error
         );
 
+        resultado = {
+          confirmada: false,
+          motivo: "error",
+        };
+      } finally {
+        socket = null;
+
+        if (!destruido) {
+          cambiarEstado(ESTADOS.FINALIZADO);
+        }
+      }
+
+      if (!resultado?.confirmada) {
+        console.warn(
+          "AssemblyAI terminó sin confirmación completa:",
+          resultado?.motivo
+        );
+      }
+
+      return resultado;
+    })();
+
+    return promesaDetencion;
+  };
+
+  // =======================================================
+  // DESTRUIR SESIÓN
+  // =======================================================
+
+  const destruir = () => {
+    if (promesaDestruccion) {
+      return promesaDestruccion;
+    }
+
+    promesaDestruccion = (async () => {
+      // Si hay una detención ordenada en curso,
+      // esperamos a que termine.
+      if (promesaDetencion) {
+        await promesaDetencion;
+      } else {
+        deteniendo = true;
 
         try {
-          await procesadorPCM
-            ?.detener();
+          await procesadorPCM?.detener();
         } catch (error) {
           console.error(
-            "No se pudo detener el procesador PCM:",
+            "No se pudo liberar el procesador PCM:",
             error
           );
         }
 
+        procesadorPCM = null;
+        detenido = true;
+      }
 
-        procesadorPCM =
-          null;
+      destruido = true;
 
+      forzarCierreAssembly(socket);
+      socket = null;
 
-        terminarConexionAssembly(
-          socket
-        );
-      };
+      cambiarEstado(ESTADOS.FINALIZADO);
+    })();
 
-
-    // Cierre inmediato
-
-    const destruir =
-      async () => {
-        detenido =
-          true;
-
-
-        try {
-          await procesadorPCM
-            ?.detener();
-        } catch {
-          // Procesador ya detenido
-        }
-
-
-        procesadorPCM =
-          null;
-
-
-        forzarCierreAssembly(
-          socket
-        );
-
-
-        socket =
-          null;
-
-
-        cambiarEstado(
-          ESTADOS.FINALIZADO
-        );
-      };
-
-
-    // Estado actual
-
-    const obtenerEstado =
-      () => {
-        return estado;
-      };
-
-
-    return {
-      pausar,
-      reanudar,
-      detener,
-      destruir,
-      obtenerEstado,
-    };
+    return promesaDestruccion;
   };
 
+  // =======================================================
+  // CONSULTAR ESTADO
+  // =======================================================
 
-export const estadosTranscripcion =
-  ESTADOS;
+  const obtenerEstado = () => estado;
+
+  return {
+    pausar,
+    reanudar,
+    detener,
+    destruir,
+    obtenerEstado,
+  };
+};
+
+export const estadosTranscripcion = ESTADOS;

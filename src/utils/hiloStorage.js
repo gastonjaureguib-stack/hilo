@@ -1,1385 +1,712 @@
+
 const DB_NAME = "hilo-db";
 const DB_VERSION = 3;
 
 const STORE_CLASE = "claseActual";
 const STORE_AUDIO = "audioChunks";
-const STORE_CLASES_GUARDADAS =
-  "clasesGuardadas";
-
+const STORE_CLASES_GUARDADAS = "clasesGuardadas";
 
 // =========================================================
-// VALIDAR USUARIO
+// VALIDACIONES
 // =========================================================
 
 const validarUserId = (userId) => {
   if (!userId) {
-    throw new Error(
-      "Se necesita un usuario autenticado."
-    );
+    throw new Error("Se necesita un usuario autenticado.");
   }
 };
 
+const crearId = () => {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random()}`;
+};
 
 // =========================================================
 // ABRIR BASE DE DATOS
 // =========================================================
 
 const abrirDB = () => {
-  return new Promise(
-    (resolve, reject) => {
-      const request =
-        indexedDB.open(
-          DB_NAME,
-          DB_VERSION
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      const transaction = request.transaction;
+
+      // CLASE ACTUAL
+
+      if (!db.objectStoreNames.contains(STORE_CLASE)) {
+        db.createObjectStore(STORE_CLASE, {
+          keyPath: "id",
+        });
+      }
+
+      // FRAGMENTOS DE AUDIO
+
+      if (!db.objectStoreNames.contains(STORE_AUDIO)) {
+        const store = db.createObjectStore(STORE_AUDIO, {
+          keyPath: "id",
+          autoIncrement: true,
+        });
+
+        store.createIndex("userId", "userId", {
+          unique: false,
+        });
+      } else {
+        const store = transaction.objectStore(STORE_AUDIO);
+
+        if (!store.indexNames.contains("userId")) {
+          store.createIndex("userId", "userId", {
+            unique: false,
+          });
+        }
+      }
+
+      // CLASES GUARDADAS
+
+      if (
+        !db.objectStoreNames.contains(
+          STORE_CLASES_GUARDADAS
+        )
+      ) {
+        const store = db.createObjectStore(
+          STORE_CLASES_GUARDADAS,
+          {
+            keyPath: "id",
+          }
         );
 
-      request.onupgradeneeded =
-        () => {
-          const db =
-            request.result;
+        store.createIndex("userId", "userId", {
+          unique: false,
+        });
+      } else {
+        const store = transaction.objectStore(
+          STORE_CLASES_GUARDADAS
+        );
 
-          const transaction =
-            request.transaction;
+        if (!store.indexNames.contains("userId")) {
+          store.createIndex("userId", "userId", {
+            unique: false,
+          });
+        }
+      }
+    };
 
+    request.onsuccess = () => {
+      const db = request.result;
 
-          // =================================================
-          // CLASE ACTUAL
-          // =================================================
+      db.onversionchange = () => {
+        db.close();
+      };
 
-          if (
-            !db.objectStoreNames.contains(
-              STORE_CLASE
-            )
-          ) {
-            db.createObjectStore(
-              STORE_CLASE,
-              {
-                keyPath: "id",
-              }
-            );
-          }
+      resolve(db);
+    };
 
+    request.onerror = () => {
+      reject(request.error);
+    };
 
-          // =================================================
-          // AUDIO CHUNKS
-          // =================================================
-
-          if (
-            !db.objectStoreNames.contains(
-              STORE_AUDIO
-            )
-          ) {
-            const store =
-              db.createObjectStore(
-                STORE_AUDIO,
-                {
-                  keyPath: "id",
-                  autoIncrement: true,
-                }
-              );
-
-            store.createIndex(
-              "userId",
-              "userId",
-              {
-                unique: false,
-              }
-            );
-          } else {
-            const store =
-              transaction.objectStore(
-                STORE_AUDIO
-              );
-
-            if (
-              !store.indexNames.contains(
-                "userId"
-              )
-            ) {
-              store.createIndex(
-                "userId",
-                "userId",
-                {
-                  unique: false,
-                }
-              );
-            }
-          }
-
-
-          // =================================================
-          // CLASES GUARDADAS
-          // =================================================
-
-          if (
-            !db.objectStoreNames.contains(
-              STORE_CLASES_GUARDADAS
-            )
-          ) {
-            const store =
-              db.createObjectStore(
-                STORE_CLASES_GUARDADAS,
-                {
-                  keyPath: "id",
-                }
-              );
-
-            store.createIndex(
-              "userId",
-              "userId",
-              {
-                unique: false,
-              }
-            );
-          } else {
-            const store =
-              transaction.objectStore(
-                STORE_CLASES_GUARDADAS
-              );
-
-            if (
-              !store.indexNames.contains(
-                "userId"
-              )
-            ) {
-              store.createIndex(
-                "userId",
-                "userId",
-                {
-                  unique: false,
-                }
-              );
-            }
-          }
-        };
-
-
-      request.onsuccess =
-        () => {
-          resolve(
-            request.result
-          );
-        };
-
-
-      request.onerror =
-        () => {
-          reject(
-            request.error
-          );
-        };
-
-
-      request.onblocked =
-        () => {
-          console.warn(
-            "La actualización de IndexedDB está bloqueada por otra pestaña de Hilo."
-          );
-        };
-    }
-  );
+    request.onblocked = () => {
+      console.warn(
+        "La actualización de IndexedDB está bloqueada por otra pestaña de Hilo."
+      );
+    };
+  });
 };
 
+// =========================================================
+// EJECUTAR TRANSACCIONES
+// =========================================================
+
+const ejecutarTransaccion = async (
+  nombreStore,
+  modo,
+  operacion
+) => {
+  const db = await abrirDB();
+
+  return new Promise((resolve, reject) => {
+    let resultado;
+    let errorPersonalizado = null;
+    let finalizada = false;
+
+    const transaction = db.transaction(nombreStore, modo);
+    const store = transaction.objectStore(nombreStore);
+
+    const cerrar = () => {
+      db.close();
+    };
+
+    const resolver = (valor) => {
+      if (finalizada) return;
+
+      finalizada = true;
+      cerrar();
+      resolve(valor);
+    };
+
+    const rechazar = (error) => {
+      if (finalizada) return;
+
+      finalizada = true;
+      cerrar();
+      reject(error);
+    };
+
+    transaction.oncomplete = () => {
+      resolver(resultado);
+    };
+
+    transaction.onerror = () => {
+      rechazar(
+        errorPersonalizado ||
+          transaction.error ||
+          new Error("Error en IndexedDB.")
+      );
+    };
+
+    transaction.onabort = () => {
+      rechazar(
+        errorPersonalizado ||
+          transaction.error ||
+          new Error("La transacción fue cancelada.")
+      );
+    };
+
+    try {
+      operacion(store, transaction, {
+        setResultado: (valor) => {
+          resultado = valor;
+        },
+        setError: (error) => {
+          errorPersonalizado = error;
+        },
+      });
+    } catch (error) {
+      errorPersonalizado = error;
+
+      try {
+        transaction.abort();
+      } catch {
+        rechazar(error);
+      }
+    }
+  });
+};
 
 // =========================================================
 // GUARDAR CLASE ACTUAL
 // =========================================================
 
-export const guardarClaseLocal =
-  async (
-    hiloActual,
-    userId
-  ) => {
-    validarUserId(userId);
+export const guardarClaseLocal = async (
+  hiloActual,
+  userId
+) => {
+  validarUserId(userId);
 
-    const db =
-      await abrirDB();
-
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_CLASE,
-            "readwrite"
-          );
-
-        const store =
-          transaction.objectStore(
-            STORE_CLASE
-          );
-
-        store.put({
-          id: userId,
-
+  return ejecutarTransaccion(
+    STORE_CLASE,
+    "readwrite",
+    (store, _transaction, { setResultado }) => {
+      store.put({
+        id: userId,
+        userId,
+        data: {
+          ...hiloActual,
           userId,
+        },
+      });
 
-          data: {
-            ...hiloActual,
-            userId,
-          },
-        });
-
-
-        transaction.oncomplete =
-          () => {
-            db.close();
-            resolve(true);
-          };
-
-
-        transaction.onerror =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-
-
-        transaction.onabort =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// OBTENER CLASE ACTUAL DEL USUARIO
-// =========================================================
-
-export const obtenerClaseLocal =
-  async (userId) => {
-    if (!userId) {
-      return null;
+      setResultado(true);
     }
+  );
+};
 
-    const db =
-      await abrirDB();
+// =========================================================
+// OBTENER CLASE ACTUAL
+// =========================================================
 
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_CLASE,
-            "readonly"
-          );
+export const obtenerClaseLocal = async (userId) => {
+  if (!userId) return null;
 
-        const store =
-          transaction.objectStore(
-            STORE_CLASE
-          );
+  return ejecutarTransaccion(
+    STORE_CLASE,
+    "readonly",
+    (store, _transaction, { setResultado }) => {
+      const request = store.get(userId);
 
-        const request =
-          store.get(userId);
-
-
-        request.onsuccess =
-          () => {
-            const resultado =
-              request.result
-                ?.data ||
-              null;
-
-            db.close();
-
-            resolve(
-              resultado
-            );
-          };
-
-
-        request.onerror =
-          () => {
-            const error =
-              request.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
+      request.onsuccess = () => {
+        setResultado(request.result?.data ?? null);
+      };
+    }
+  );
+};
 
 // =========================================================
 // OBTENER CLASE LOCAL ANTIGUA
-//
-// Solamente para migrar la versión anterior.
-// Antes se guardaba siempre con id = "actual".
 // =========================================================
 
-export const obtenerClaseLocalLegacy =
-  async () => {
-    const db =
-      await abrirDB();
+export const obtenerClaseLocalLegacy = async () => {
+  return ejecutarTransaccion(
+    STORE_CLASE,
+    "readonly",
+    (store, _transaction, { setResultado }) => {
+      const request = store.get("actual");
 
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_CLASE,
-            "readonly"
-          );
-
-        const store =
-          transaction.objectStore(
-            STORE_CLASE
-          );
-
-        const request =
-          store.get("actual");
-
-
-        request.onsuccess =
-          () => {
-            const resultado =
-              request.result
-                ?.data ||
-              null;
-
-            db.close();
-
-            resolve(resultado);
-          };
-
-
-        request.onerror =
-          () => {
-            const error =
-              request.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// BORRAR CLASE ACTUAL DEL USUARIO
-// =========================================================
-
-export const borrarClaseLocal =
-  async (userId) => {
-    validarUserId(userId);
-
-    const db =
-      await abrirDB();
-
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_CLASE,
-            "readwrite"
-          );
-
-        const store =
-          transaction.objectStore(
-            STORE_CLASE
-          );
-
-        store.delete(userId);
-
-
-        transaction.oncomplete =
-          () => {
-            db.close();
-            resolve(true);
-          };
-
-
-        transaction.onerror =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-
-
-        transaction.onabort =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// BORRAR CLASE LOCAL LEGACY
-// =========================================================
-
-export const borrarClaseLocalLegacy =
-  async () => {
-    const db =
-      await abrirDB();
-
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_CLASE,
-            "readwrite"
-          );
-
-        const store =
-          transaction.objectStore(
-            STORE_CLASE
-          );
-
-        store.delete("actual");
-
-
-        transaction.oncomplete =
-          () => {
-            db.close();
-            resolve(true);
-          };
-
-
-        transaction.onerror =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-
-
-        transaction.onabort =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// GUARDAR CHUNK DE AUDIO
-// =========================================================
-
-export const guardarChunkAudio =
-  async (
-    blob,
-    userId
-  ) => {
-    if (
-      !blob ||
-      blob.size === 0
-    ) {
-      return;
+      request.onsuccess = () => {
+        setResultado(request.result?.data ?? null);
+      };
     }
+  );
+};
 
-    validarUserId(userId);
+// =========================================================
+// BORRAR CLASE ACTUAL
+// =========================================================
 
-    const db =
-      await abrirDB();
+export const borrarClaseLocal = async (userId) => {
+  validarUserId(userId);
 
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_AUDIO,
-            "readwrite"
-          );
+  return ejecutarTransaccion(
+    STORE_CLASE,
+    "readwrite",
+    (store, _transaction, { setResultado }) => {
+      store.delete(userId);
+      setResultado(true);
+    }
+  );
+};
 
-        const store =
-          transaction.objectStore(
-            STORE_AUDIO
-          );
+// =========================================================
+// BORRAR CLASE LOCAL ANTIGUA
+// =========================================================
 
-        const request =
-          store.add({
+export const borrarClaseLocalLegacy = async () => {
+  return ejecutarTransaccion(
+    STORE_CLASE,
+    "readwrite",
+    (store, _transaction, { setResultado }) => {
+      store.delete("actual");
+      setResultado(true);
+    }
+  );
+};
+
+// =========================================================
+// GUARDAR FRAGMENTO DE AUDIO
+// =========================================================
+
+export const guardarChunkAudio = async (blob, userId) => {
+  if (!blob || blob.size === 0) {
+    return;
+  }
+
+  validarUserId(userId);
+
+  return ejecutarTransaccion(
+    STORE_AUDIO,
+    "readwrite",
+    (store, _transaction, { setResultado }) => {
+      const request = store.add({
+        userId,
+        blob,
+        createdAt: Date.now(),
+      });
+
+      request.onsuccess = () => {
+        setResultado(request.result);
+      };
+    }
+  );
+};
+
+// =========================================================
+// OBTENER FRAGMENTOS DE AUDIO
+// =========================================================
+
+export const obtenerChunksAudio = async (userId) => {
+  if (!userId) return [];
+
+  return ejecutarTransaccion(
+    STORE_AUDIO,
+    "readonly",
+    (store, _transaction, { setResultado }) => {
+      const index = store.index("userId");
+      const request = index.getAll(userId);
+
+      request.onsuccess = () => {
+        setResultado(request.result ?? []);
+      };
+    }
+  );
+};
+
+// =========================================================
+// OBTENER FRAGMENTOS ANTIGUOS
+// =========================================================
+
+export const obtenerChunksAudioLegacy = async () => {
+  return ejecutarTransaccion(
+    STORE_AUDIO,
+    "readonly",
+    (store, _transaction, { setResultado }) => {
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const chunks = (request.result ?? []).filter(
+          (item) => !item.userId
+        );
+
+        setResultado(chunks);
+      };
+    }
+  );
+};
+
+// =========================================================
+// MIGRAR FRAGMENTOS ANTIGUOS
+// =========================================================
+
+export const migrarChunksAudioLegacy = async (userId) => {
+  validarUserId(userId);
+
+  return ejecutarTransaccion(
+    STORE_AUDIO,
+    "readwrite",
+    (store, _transaction, { setResultado }) => {
+      const request = store.openCursor();
+
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+
+        if (!cursor) return;
+
+        const item = cursor.value;
+
+        if (!item.userId) {
+          cursor.update({
+            ...item,
             userId,
-
-            blob,
-
-            createdAt:
-              Date.now(),
           });
+        }
 
-        let idCreado =
-          null;
+        cursor.continue();
+      };
 
-
-        request.onsuccess =
-          () => {
-            idCreado =
-              request.result;
-          };
-
-
-        transaction.oncomplete =
-          () => {
-            db.close();
-
-            resolve(
-              idCreado
-            );
-          };
-
-
-        transaction.onerror =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-
-
-        transaction.onabort =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// OBTENER CHUNKS DEL USUARIO
-// =========================================================
-
-export const obtenerChunksAudio =
-  async (userId) => {
-    if (!userId) {
-      return [];
+      setResultado(true);
     }
-
-    const db =
-      await abrirDB();
-
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_AUDIO,
-            "readonly"
-          );
-
-        const store =
-          transaction.objectStore(
-            STORE_AUDIO
-          );
-
-        const index =
-          store.index("userId");
-
-        const request =
-          index.getAll(userId);
-
-
-        request.onsuccess =
-          () => {
-            const resultado =
-              request.result ||
-              [];
-
-            db.close();
-
-            resolve(resultado);
-          };
-
-
-        request.onerror =
-          () => {
-            const error =
-              request.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
+  );
+};
 
 // =========================================================
-// OBTENER CHUNKS ANTIGUOS SIN USUARIO
+// BORRAR FRAGMENTOS DE AUDIO
 // =========================================================
 
-export const obtenerChunksAudioLegacy =
-  async () => {
-    const db =
-      await abrirDB();
+export const borrarChunksAudio = async (userId) => {
+  validarUserId(userId);
 
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_AUDIO,
-            "readonly"
-          );
+  return ejecutarTransaccion(
+    STORE_AUDIO,
+    "readwrite",
+    (store, _transaction, { setResultado }) => {
+      const index = store.index("userId");
 
-        const store =
-          transaction.objectStore(
-            STORE_AUDIO
-          );
-
-        const request =
-          store.getAll();
-
-
-        request.onsuccess =
-          () => {
-            const resultado =
-              (
-                request.result ||
-                []
-              ).filter(
-                (item) =>
-                  !item.userId
-              );
-
-            db.close();
-
-            resolve(resultado);
-          };
-
-
-        request.onerror =
-          () => {
-            const error =
-              request.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// MIGRAR CHUNKS ANTIGUOS AL USUARIO
-// =========================================================
-
-export const migrarChunksAudioLegacy =
-  async (userId) => {
-    validarUserId(userId);
-
-    const db =
-      await abrirDB();
-
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_AUDIO,
-            "readwrite"
-          );
-
-        const store =
-          transaction.objectStore(
-            STORE_AUDIO
-          );
-
-        const request =
-          store.openCursor();
-
-
-        request.onsuccess =
-          (event) => {
-            const cursor =
-              event.target.result;
-
-            if (!cursor) {
-              return;
-            }
-
-            const item =
-              cursor.value;
-
-            if (!item.userId) {
-              cursor.update({
-                ...item,
-                userId,
-              });
-            }
-
-            cursor.continue();
-          };
-
-
-        transaction.oncomplete =
-          () => {
-            db.close();
-            resolve(true);
-          };
-
-
-        transaction.onerror =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-
-
-        transaction.onabort =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// BORRAR CHUNKS DEL USUARIO
-// =========================================================
-
-export const borrarChunksAudio =
-  async (userId) => {
-    validarUserId(userId);
-
-    const db =
-      await abrirDB();
-
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_AUDIO,
-            "readwrite"
-          );
-
-        const store =
-          transaction.objectStore(
-            STORE_AUDIO
-          );
-
-        const index =
-          store.index("userId");
-
-        const request =
-          index.openKeyCursor(
-            IDBKeyRange.only(userId)
-          );
-
-
-        request.onsuccess =
-          (event) => {
-            const cursor =
-              event.target.result;
-
-            if (!cursor) {
-              return;
-            }
-
-            store.delete(
-              cursor.primaryKey
-            );
-
-            cursor.continue();
-          };
-
-
-        transaction.oncomplete =
-          () => {
-            db.close();
-            resolve(true);
-          };
-
-
-        transaction.onerror =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-
-
-        transaction.onabort =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// GUARDAR / ACTUALIZAR CLASE EN APUNTES
-// =========================================================
-
-export const guardarClaseTerminada =
-  async (
-    clase,
-    userId
-  ) => {
-    if (!clase) {
-      throw new Error(
-        "No hay una clase para guardar."
-      );
-    }
-
-    validarUserId(userId);
-
-    const db =
-      await abrirDB();
-
-    const id =
-      clase.id ||
-      (
-        typeof crypto !==
-          "undefined" &&
-        crypto.randomUUID
-          ? crypto.randomUUID()
-          : `${Date.now()}-${Math.random()}`
+      const request = index.openKeyCursor(
+        IDBKeyRange.only(userId)
       );
 
-    const claseGuardada = {
-      ...clase,
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
 
-      id,
+        if (!cursor) return;
 
-      userId,
-    };
+        store.delete(cursor.primaryKey);
+        cursor.continue();
+      };
 
-
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_CLASES_GUARDADAS,
-            "readwrite"
-          );
-
-        const store =
-          transaction.objectStore(
-            STORE_CLASES_GUARDADAS
-          );
-
-        store.put(
-          claseGuardada
-        );
-
-
-        transaction.oncomplete =
-          () => {
-            db.close();
-
-            resolve(
-              claseGuardada
-            );
-          };
-
-
-        transaction.onerror =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-
-
-        transaction.onabort =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// OBTENER CLASES DEL USUARIO
-// =========================================================
-
-export const obtenerClasesTerminadas =
-  async (userId) => {
-    if (!userId) {
-      return [];
+      setResultado(true);
     }
-
-    const db =
-      await abrirDB();
-
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_CLASES_GUARDADAS,
-            "readonly"
-          );
-
-        const store =
-          transaction.objectStore(
-            STORE_CLASES_GUARDADAS
-          );
-
-        const index =
-          store.index("userId");
-
-        const request =
-          index.getAll(userId);
-
-
-        request.onsuccess =
-          () => {
-            const clases =
-              request.result ||
-              [];
-
-
-            clases.sort(
-              (a, b) => {
-                const fechaA =
-                  new Date(
-                    a.guardadaEn ||
-                    a.finalizadaEn ||
-                    a.iniciadaEn ||
-                    0
-                  ).getTime();
-
-                const fechaB =
-                  new Date(
-                    b.guardadaEn ||
-                    b.finalizadaEn ||
-                    b.iniciadaEn ||
-                    0
-                  ).getTime();
-
-                return (
-                  fechaB -
-                  fechaA
-                );
-              }
-            );
-
-
-            db.close();
-
-            resolve(clases);
-          };
-
-
-        request.onerror =
-          () => {
-            const error =
-              request.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
+  );
+};
 
 // =========================================================
-// OBTENER CLASES ANTIGUAS SIN USUARIO
+// GUARDAR O ACTUALIZAR CLASE EN APUNTES
 // =========================================================
 
-export const obtenerClasesTerminadasLegacy =
-  async () => {
-    const db =
-      await abrirDB();
+export const guardarClaseTerminada = async (
+  clase,
+  userId
+) => {
+  if (!clase) {
+    throw new Error("No hay una clase para guardar.");
+  }
 
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_CLASES_GUARDADAS,
-            "readonly"
-          );
+  validarUserId(userId);
 
-        const store =
-          transaction.objectStore(
-            STORE_CLASES_GUARDADAS
-          );
+  const id = clase.id || crearId();
 
-        const request =
-          store.getAll();
-
-
-        request.onsuccess =
-          () => {
-            const clases =
-              (
-                request.result ||
-                []
-              ).filter(
-                (clase) =>
-                  !clase.userId
-              );
-
-            db.close();
-
-            resolve(clases);
-          };
-
-
-        request.onerror =
-          () => {
-            const error =
-              request.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// MIGRAR CLASES ANTIGUAS AL USUARIO
-// =========================================================
-
-export const migrarClasesTerminadasLegacy =
-  async (userId) => {
-    validarUserId(userId);
-
-    const db =
-      await abrirDB();
-
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_CLASES_GUARDADAS,
-            "readwrite"
-          );
-
-        const store =
-          transaction.objectStore(
-            STORE_CLASES_GUARDADAS
-          );
-
-        const request =
-          store.openCursor();
-
-
-        request.onsuccess =
-          (event) => {
-            const cursor =
-              event.target.result;
-
-            if (!cursor) {
-              return;
-            }
-
-            const clase =
-              cursor.value;
-
-            if (!clase.userId) {
-              cursor.update({
-                ...clase,
-                userId,
-              });
-            }
-
-            cursor.continue();
-          };
-
-
-        transaction.oncomplete =
-          () => {
-            db.close();
-            resolve(true);
-          };
-
-
-        transaction.onerror =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-
-
-        transaction.onabort =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// OBTENER UNA CLASE DEL USUARIO
-// =========================================================
-
-export const obtenerClaseTerminada =
-  async (
+  const claseGuardada = {
+    ...clase,
     id,
-    userId
-  ) => {
-    if (!id || !userId) {
-      return null;
-    }
-
-    const db =
-      await abrirDB();
-
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_CLASES_GUARDADAS,
-            "readonly"
-          );
-
-        const store =
-          transaction.objectStore(
-            STORE_CLASES_GUARDADAS
-          );
-
-        const request =
-          store.get(id);
-
-
-        request.onsuccess =
-          () => {
-            const clase =
-              request.result ||
-              null;
-
-            db.close();
-
-            if (
-              !clase ||
-              clase.userId !== userId
-            ) {
-              resolve(null);
-              return;
-            }
-
-            resolve(clase);
-          };
-
-
-        request.onerror =
-          () => {
-            const error =
-              request.error;
-
-            db.close();
-
-            reject(error);
-          };
-      }
-    );
+    userId,
   };
 
+  return ejecutarTransaccion(
+    STORE_CLASES_GUARDADAS,
+    "readwrite",
+    (
+      store,
+      transaction,
+      { setResultado, setError }
+    ) => {
+      const request = store.get(id);
+
+      request.onsuccess = () => {
+        const existente = request.result;
+
+        // Evitamos sobrescribir una clase de otro usuario.
+
+        if (
+          existente &&
+          existente.userId !== userId
+        ) {
+          setError(
+            new Error(
+              "No se puede sobrescribir una clase perteneciente a otro usuario."
+            )
+          );
+
+          transaction.abort();
+          return;
+        }
+
+        store.put(claseGuardada);
+      };
+
+      setResultado(claseGuardada);
+    }
+  );
+};
 
 // =========================================================
-// ELIMINAR CLASE DEL USUARIO
+// OBTENER CLASES GUARDADAS
 // =========================================================
 
-export const eliminarClaseTerminada =
-  async (
-    id,
-    userId
-  ) => {
-    if (!id) {
-      throw new Error(
-        "Se necesita el ID de la clase para eliminarla."
+export const obtenerClasesTerminadas = async (userId) => {
+  if (!userId) return [];
+
+  return ejecutarTransaccion(
+    STORE_CLASES_GUARDADAS,
+    "readonly",
+    (store, _transaction, { setResultado }) => {
+      const index = store.index("userId");
+      const request = index.getAll(userId);
+
+      request.onsuccess = () => {
+        const clases = request.result ?? [];
+
+        clases.sort((a, b) => {
+          const fechaA = new Date(
+            a.guardadaEn ||
+              a.finalizadaEn ||
+              a.iniciadaEn ||
+              0
+          ).getTime();
+
+          const fechaB = new Date(
+            b.guardadaEn ||
+              b.finalizadaEn ||
+              b.iniciadaEn ||
+              0
+          ).getTime();
+
+          return fechaB - fechaA;
+        });
+
+        setResultado(clases);
+      };
+    }
+  );
+};
+
+// =========================================================
+// OBTENER CLASES ANTIGUAS
+// =========================================================
+
+export const obtenerClasesTerminadasLegacy = async () => {
+  return ejecutarTransaccion(
+    STORE_CLASES_GUARDADAS,
+    "readonly",
+    (store, _transaction, { setResultado }) => {
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const clases = (request.result ?? []).filter(
+          (clase) => !clase.userId
+        );
+
+        setResultado(clases);
+      };
+    }
+  );
+};
+
+// =========================================================
+// MIGRAR CLASES ANTIGUAS
+// =========================================================
+
+export const migrarClasesTerminadasLegacy = async (
+  userId
+) => {
+  validarUserId(userId);
+
+  return ejecutarTransaccion(
+    STORE_CLASES_GUARDADAS,
+    "readwrite",
+    (store, _transaction, { setResultado }) => {
+      const request = store.openCursor();
+
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+
+        if (!cursor) return;
+
+        const clase = cursor.value;
+
+        if (!clase.userId) {
+          cursor.update({
+            ...clase,
+            userId,
+          });
+        }
+
+        cursor.continue();
+      };
+
+      setResultado(true);
+    }
+  );
+};
+
+// =========================================================
+// OBTENER UNA CLASE GUARDADA
+// =========================================================
+
+export const obtenerClaseTerminada = async (
+  id,
+  userId
+) => {
+  if (!id || !userId) return null;
+
+  return ejecutarTransaccion(
+    STORE_CLASES_GUARDADAS,
+    "readonly",
+    (store, _transaction, { setResultado }) => {
+      const request = store.get(id);
+
+      request.onsuccess = () => {
+        const clase = request.result ?? null;
+
+        if (!clase || clase.userId !== userId) {
+          setResultado(null);
+          return;
+        }
+
+        setResultado(clase);
+      };
+    }
+  );
+};
+
+// =========================================================
+// ELIMINAR CLASE GUARDADA
+// =========================================================
+
+export const eliminarClaseTerminada = async (
+  id,
+  userId
+) => {
+  if (!id) {
+    throw new Error(
+      "Se necesita el ID de la clase para eliminarla."
+    );
+  }
+
+  validarUserId(userId);
+
+  return ejecutarTransaccion(
+    STORE_CLASES_GUARDADAS,
+    "readwrite",
+    (
+      store,
+      transaction,
+      { setResultado, setError }
+    ) => {
+      const request = store.get(id);
+
+      request.onsuccess = () => {
+        const clase = request.result;
+
+        if (!clase || clase.userId !== userId) {
+          setError(
+            new Error(
+              "La clase no existe o no pertenece al usuario."
+            )
+          );
+
+          transaction.abort();
+          return;
+        }
+
+        store.delete(id);
+      };
+
+      setResultado(true);
+    }
+  );
+};
+
+// =========================================================
+// MIGRAR DATOS ANTIGUOS
+// =========================================================
+
+export const migrarDatosLegacy = async (userId) => {
+  validarUserId(userId);
+
+  // Recuperar la clase actual de versiones anteriores.
+
+  const claseActualAntigua =
+    await obtenerClaseLocalLegacy();
+
+  if (claseActualAntigua) {
+    const claseActualUsuario =
+      await obtenerClaseLocal(userId);
+
+    // No sobrescribimos una clase existente.
+
+    if (!claseActualUsuario) {
+      await guardarClaseLocal(
+        claseActualAntigua,
+        userId
       );
     }
 
-    validarUserId(userId);
+    await borrarClaseLocalLegacy();
+  }
 
-    const db =
-      await abrirDB();
+  // Migrar clases históricas sin usuario.
 
-    return new Promise(
-      (resolve, reject) => {
-        const transaction =
-          db.transaction(
-            STORE_CLASES_GUARDADAS,
-            "readwrite"
-          );
+  await migrarClasesTerminadasLegacy(userId);
 
-        const store =
-          transaction.objectStore(
-            STORE_CLASES_GUARDADAS
-          );
+  // Migrar fragmentos de audio sin usuario.
 
-        const request =
-          store.get(id);
+  await migrarChunksAudioLegacy(userId);
 
-
-        request.onsuccess =
-          () => {
-            const clase =
-              request.result;
-
-            if (
-              !clase ||
-              clase.userId !== userId
-            ) {
-              transaction.abort();
-              return;
-            }
-
-            store.delete(id);
-          };
-
-
-        transaction.oncomplete =
-          () => {
-            db.close();
-            resolve(true);
-          };
-
-
-        transaction.onerror =
-          () => {
-            const error =
-              transaction.error;
-
-            db.close();
-
-            reject(error);
-          };
-
-
-        transaction.onabort =
-          () => {
-            db.close();
-
-            reject(
-              new Error(
-                "La clase no existe o no pertenece al usuario."
-              )
-            );
-          };
-      }
-    );
-  };
-
-
-// =========================================================
-// MIGRAR DATOS LEGACY AL PRIMER USUARIO
-//
-// Esta función se utilizará desde HiloContext una sola vez
-// para adjudicar los datos existentes al usuario actual.
-// =========================================================
-
-export const migrarDatosLegacy =
-  async (userId) => {
-    validarUserId(userId);
-
-    // -------------------------------------------------------
-    // CLASE ACTUAL ANTIGUA
-    // -------------------------------------------------------
-
-    const claseActualAntigua =
-      await obtenerClaseLocalLegacy();
-
-    if (claseActualAntigua) {
-      const claseActualUsuario =
-        await obtenerClaseLocal(
-          userId
-        );
-
-      // No pisamos una clase que ya
-      // pertenezca al usuario.
-      if (!claseActualUsuario) {
-        await guardarClaseLocal(
-          claseActualAntigua,
-          userId
-        );
-      }
-
-      await borrarClaseLocalLegacy();
-    }
-
-
-    // -------------------------------------------------------
-    // HISTORIAL ANTIGUO
-    // -------------------------------------------------------
-
-    await migrarClasesTerminadasLegacy(
-      userId
-    );
-
-
-    // -------------------------------------------------------
-    // AUDIO ANTIGUO
-    // -------------------------------------------------------
-
-    await migrarChunksAudioLegacy(
-      userId
-    );
-
-
-    return true;
-  };
+  return true;
+};
