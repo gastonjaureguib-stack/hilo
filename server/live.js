@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { liveLanguages, liveModes } from "../src/utils/liveModes.js";
 
 const instructions = {
@@ -43,6 +44,29 @@ function exceptionType(cause) {
   if (error instanceof ReferenceError) return "ReferenceError";
   if (error instanceof OpenAI.OpenAIError) return "OpenAIError";
   return error instanceof Error ? "Error" : undefined;
+}
+
+const openaiTrace = new AsyncLocalStorage();
+const sdkFrames = /\b(buildBody|buildHeaders|buildRequest|buildURL|createRequestController|formatRequestDetails|fetchWithAuth|fetchWithTimeout|makeRequest|asResponse|defaultParseResponse|addOutputText)\s+\(/;
+
+function sdkFunction(cause) {
+  const error = cause instanceof LiveError ? cause.cause : cause;
+  const stack = error?.stack;
+  if (typeof stack !== "string") return undefined;
+  for (const frame of stack.split("\n").slice(1)) {
+    if (!/^\s+at\s/.test(frame)) continue;
+    const name = sdkFrames.exec(frame)?.[1];
+    if (name) return name;
+  }
+}
+
+function responseStatus(response) {
+  try {
+    const status = response?.status;
+    return Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function invalidOutput(code) {
@@ -147,6 +171,7 @@ export function createLiveHandler(kind, {
     const startedAt = Date.now();
     const requestId = kind === "analyze" ? randomUUID() : undefined;
     let stage = "auth";
+    const trace = {};
     let release;
     const send = (event) => {
       if (!res.destroyed && !res.writableEnded) res.write(JSON.stringify(event) + "\n");
@@ -179,7 +204,7 @@ export function createLiveHandler(kind, {
           input: JSON.stringify({ fragmento: fragment, contexto: context, pendienteAnterior: pending, respondidas: answered }),
           text: { format: detection },
           max_output_tokens: 500,
-        }, options);
+        }, options, trace);
         result = parseClassification(response);
       }
 
@@ -204,7 +229,7 @@ export function createLiveHandler(kind, {
           input: JSON.stringify({ fragmento: text, contexto: context }),
           stream: true,
           max_output_tokens: mode === "traductor" ? 1200 : 350,
-        }, options);
+        }, options, trace);
         let completed = false;
         let hasText = false;
         for await (const event of stream) {
@@ -240,6 +265,10 @@ export function createLiveHandler(kind, {
           requestId, stage, code: failure.code, status: failure.status,
           providerStatus: Number.isInteger(cause?.status) && !(cause instanceof LiveError) ? cause.status : undefined,
           exception: exceptionType(cause),
+          openaiStep: trace.step,
+          openaiOperation: trace.operation,
+          openaiHttpStatus: trace.httpStatus,
+          openaiSdkFunction: trace.operation ? sdkFunction(cause) : undefined,
           nodeVersion: process.version,
           streaming: res.headersSent,
           elapsedMs: Date.now() - startedAt,
@@ -280,12 +309,28 @@ async function identifyUser(token, signal) {
 }
 
 let openai;
-async function generate(params, options) {
+async function generate(params, options, trace) {
+  trace.step = undefined;
+  trace.httpStatus = undefined;
+  trace.operation = "client_init";
   if (!openai) {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) throw new LiveError(500, "openai_key_missing", "El servicio de IA de Hilo Live no está configurado.");
     try {
-      openai = new OpenAI({ apiKey, maxRetries: 0, logLevel: "off" });
+      const fetcher = globalThis.fetch;
+      openai = new OpenAI({
+        apiKey, maxRetries: 0, logLevel: "off",
+        fetch: async (...args) => {
+          const current = openaiTrace.getStore();
+          if (current) current.step = "fetch_entered";
+          const response = await fetcher(...args);
+          if (current) {
+            current.step = "http_received";
+            current.httpStatus = responseStatus(response);
+          }
+          return response;
+        },
+      });
     } catch (cause) {
       throw new LiveError(500, "openai_client_init_failed", "No se pudo inicializar el servicio de IA de Hilo Live.", cause);
     }
@@ -293,8 +338,12 @@ async function generate(params, options) {
 
   let request;
   try {
-    request = openai.responses.create(params, options);
+    trace.step = "preparing_request";
+    trace.operation = "responses_create";
+    request = openaiTrace.run(trace, () => openai.responses.create(params, options));
+    trace.operation = "as_response";
     await request.asResponse();
+    trace.step = "as_response_resolved";
   } catch (cause) {
     if (cause instanceof OpenAI.APIError) throw cause;
     const code = cause?.code === "ERR_INVALID_URL" ? "openai_invalid_url" : "openai_request_failed";
@@ -302,6 +351,7 @@ async function generate(params, options) {
   }
 
   try {
+    trace.operation = "decode_response";
     return await request;
   } catch (cause) {
     if (cause instanceof OpenAI.APIError) throw cause;

@@ -237,9 +237,52 @@ for (const [variable, value, code] of [
     assert.equal(metadata.exception, "TypeError");
     assert.equal(metadata.nodeVersion, process.version);
     assert.equal(metadata.providerStatus, undefined);
+    assert.equal(metadata.openaiStep, variable === "OPENAI_CUSTOM_HEADERS" ? undefined : "preparing_request");
+    assert.equal(metadata.openaiOperation, variable === "OPENAI_CUSTOM_HEADERS" ? "client_init" : "as_response");
+    if (variable === "OPENAI_API_KEY") assert.equal(metadata.openaiSdkFunction, "buildHeaders");
     assert.doesNotMatch(JSON.stringify(metadata), /private-marker/);
   });
 }
+
+test("registra los límites de fetch y asResponse sin incluir datos del transporte", async (t) => {
+  const { createLiveHandler: freshHandler } = await import("../server/live.js?transport-trace");
+  const nativeFetch = globalThis.fetch;
+  let scenario = "reject";
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    if (!String(url).startsWith("https://example.test/")) return nativeFetch(url, options);
+    if (scenario === "reject") throw new TypeError("private-marker");
+    if (scenario === "http_error") return new Response("private-marker", { status: 403 });
+    return new Response("private-marker", { headers: { "Content-Type": "application/json" } });
+  });
+  const previous = { ...process.env };
+  Object.assign(process.env, {
+    OPENAI_API_KEY: "private-marker", OPENAI_BASE_URL: "https://example.test/v1",
+    OPENAI_CUSTOM_HEADERS: "", OPENAI_ORG_ID: "", OPENAI_PROJECT_ID: "",
+  });
+  t.after(() => {
+    for (const name of ["OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_CUSTOM_HEADERS", "OPENAI_ORG_ID", "OPENAI_PROJECT_ID"]) {
+      if (previous[name] === undefined) delete process.env[name];
+      else process.env[name] = previous[name];
+    }
+  });
+  const log = t.mock.method(console, "error", () => {});
+  const { post } = await setup(t, undefined, freshHandler);
+  for (const [kind, step, operation, httpStatus] of [
+    ["reject", "fetch_entered", "as_response", undefined],
+    ["http_error", "http_received", "as_response", 403],
+    ["decode", "as_response_resolved", "decode_response", 200],
+  ]) {
+    scenario = kind;
+    const response = await post({ ...input, fragment: "private-marker" });
+    const metadata = log.mock.calls.at(-1).arguments[1];
+    assert.equal(metadata.requestId, response.headers.get("x-hilo-request-id"));
+    assert.equal(metadata.openaiStep, step);
+    assert.equal(metadata.openaiOperation, operation);
+    assert.equal(metadata.openaiHttpStatus, httpStatus);
+    assert.doesNotMatch(JSON.stringify(metadata), /private-marker|example\.test/);
+    assert.doesNotMatch(await response.text(), /private-marker/);
+  }
+});
 
 test("decodifica NDJSON repartido entre fragmentos y detecta cortes", async (t) => {
   const complete = Buffer.from('{"type":"delta","text":"ñ"}\n{"type":"done"}\n');
