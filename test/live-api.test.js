@@ -148,16 +148,18 @@ test("transmite el primer delta antes de completar y rechaza solicitudes simult�
 });
 
 test("propaga fallos de clasificación y generación", async (t) => {
-  let fail = true;
+  let malformed = true;
   const { post } = await setup(t, (params) => {
-    if (fail) throw new Error("No mostrar datos del proveedor");
+    if (malformed) return { status: "completed", output_text: '{"questions":[null],"pending":""}' };
     if (!params.stream) return classify(["cómo funciona"]);
-    return (async function* () { yield { type: "response.failed" }; })();
+    return (async function* () {
+      yield { type: "response.output_text.delta", delta: "Inicio" };
+      yield { type: "response.failed" };
+    })();
   });
   const rejected = await post();
   assert.equal(rejected.status, 502);
-  assert.doesNotMatch(await rejected.text(), /datos del proveedor/);
-  fail = false;
+  malformed = false;
   const interrupted = await post();
   assert.equal(events(await interrupted.text()).at(-1).type, "error");
 });
@@ -168,7 +170,41 @@ test("comunica el límite de uso de OpenAI con un error recuperable", async (t) 
   });
   const response = await post();
   assert.equal(response.status, 503);
-  assert.match((await response.json()).error, /saldo de la cuenta/);
+  assert.match((await response.json()).error, /temporalmente/);
+});
+
+test("distingue el rechazo del modelo antes del streaming y registra solo metadatos", async (t) => {
+  const log = t.mock.method(console, "error", () => {});
+  const { post } = await setup(t, (params) => {
+    if (!params.stream) return classify(["cómo funciona"]);
+    throw Object.assign(new Error("contenido privado del proveedor"), {
+      status: 404, code: "model_not_found",
+    });
+  });
+  const response = await post();
+  assert.equal(response.status, 500);
+  assert.doesNotMatch(await response.text(), /contenido privado/);
+  const metadata = log.mock.calls[0].arguments[1];
+  assert.equal(metadata.requestId, response.headers.get("x-hilo-request-id"));
+  assert.equal(metadata.code, "model_not_found");
+  assert.equal(metadata.stage, "generation");
+  assert.equal(metadata.providerStatus, 404);
+  assert.doesNotMatch(JSON.stringify(metadata), /contenido privado|cómo funciona/);
+});
+
+test("informa la ausencia de OPENAI_API_KEY antes de abrir el stream", async (t) => {
+  const previous = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "  ";
+  t.after(() => {
+    if (previous === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previous;
+  });
+  const log = t.mock.method(console, "error", () => {});
+  const { post } = await setup(t);
+  const response = await post();
+  assert.equal(response.status, 500);
+  assert.match((await response.json()).error, /no está configurado/);
+  assert.equal(log.mock.calls[0].arguments[1].code, "openai_key_missing");
 });
 
 test("decodifica NDJSON repartido entre fragmentos y detecta cortes", async (t) => {
