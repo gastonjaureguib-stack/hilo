@@ -9,11 +9,11 @@ import { analyzeLive } from "../src/services/liveService.js";
 const input = { fragment: "cómo funciona", context: "", pending: "", answered: [], mode: "general" };
 const auth = { Authorization: "Bearer allowed" };
 
-async function setup(t, createResponse) {
+async function setup(t, createResponse, handler = createLiveHandler) {
   const identify = async (token) => token === "allowed" ? "user" : undefined;
   const app = express();
   app.use(express.json());
-  app.all("/api/live-analyze", createLiveHandler("analyze", { identify, createResponse }));
+  app.all("/api/live-analyze", handler("analyze", { identify, createResponse }));
   app.all("/api/live-token", createLiveHandler("token", { identify, getToken: async () => "temporary" }));
   const server = app.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -206,6 +206,40 @@ test("informa la ausencia de OPENAI_API_KEY antes de abrir el stream", async (t)
   assert.match((await response.json()).error, /no está configurado/);
   assert.equal(log.mock.calls[0].arguments[1].code, "openai_key_missing");
 });
+
+for (const [variable, value, code] of [
+  ["OPENAI_CUSTOM_HEADERS", "invalid header: private-marker", "openai_client_init_failed"],
+  ["OPENAI_BASE_URL", "private-marker", "openai_invalid_url"],
+  ["OPENAI_API_KEY", "placeholder\nprivate-marker", "openai_request_failed"],
+]) {
+  test(`identifica un fallo local del SDK con ${variable} sin exponer su valor`, async (t) => {
+    const config = {
+      OPENAI_API_KEY: "placeholder", OPENAI_BASE_URL: "", OPENAI_CUSTOM_HEADERS: "",
+      OPENAI_ORG_ID: "", OPENAI_PROJECT_ID: "", [variable]: value,
+    };
+    for (const [key, setting] of Object.entries(config)) {
+      const previous = process.env[key];
+      process.env[key] = setting;
+      t.after(() => {
+        if (previous === undefined) delete process.env[key];
+        else process.env[key] = previous;
+      });
+    }
+    const { createLiveHandler: freshHandler } = await import(`../server/live.js?${variable}`);
+    const log = t.mock.method(console, "error", () => {});
+    const { post } = await setup(t, undefined, freshHandler);
+    const response = await post();
+    assert.equal(response.status, 500);
+    assert.doesNotMatch(await response.text(), /private-marker/);
+    const metadata = log.mock.calls[0].arguments[1];
+    assert.equal(metadata.stage, "classification");
+    assert.equal(metadata.code, code);
+    assert.equal(metadata.exception, "TypeError");
+    assert.equal(metadata.nodeVersion, process.version);
+    assert.equal(metadata.providerStatus, undefined);
+    assert.doesNotMatch(JSON.stringify(metadata), /private-marker/);
+  });
+}
 
 test("decodifica NDJSON repartido entre fragmentos y detecta cortes", async (t) => {
   const complete = Buffer.from('{"type":"delta","text":"ñ"}\n{"type":"done"}\n');
