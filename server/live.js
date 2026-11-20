@@ -46,6 +46,30 @@ function exceptionType(cause) {
   return error instanceof Error ? "Error" : undefined;
 }
 
+function probeHeaders(value) {
+  let operation = "construct";
+  try {
+    const headers = new Headers();
+    operation = "append";
+    headers.append("authorization", value);
+    operation = "entries";
+    Array.from(headers.entries(), () => undefined);
+    return { passed: true, failedOperation: null, exception: null };
+  } catch (cause) {
+    return { passed: false, failedOperation: operation, exception: exceptionType(cause) ?? "Unknown" };
+  }
+}
+
+function logHeadersProbe(requestId) {
+  const apiKey = openai?.apiKey ?? getOpenAIKey();
+  console.info("[hilo-live] headers_probe", {
+    requestId,
+    control: probeHeaders("Bearer hilo-headers-probe"),
+    authorizationChecked: Boolean(apiKey),
+    authorization: apiKey ? probeHeaders(`Bearer ${apiKey}`) : null,
+  });
+}
+
 const openaiTrace = new AsyncLocalStorage();
 const sdkFrames = /\b(buildBody|buildHeaders|buildRequest|buildURL|createRequestController|formatRequestDetails|fetchWithAuth|fetchWithTimeout|makeRequest|asResponse|defaultParseResponse|addOutputText)\s+\(/;
 
@@ -192,6 +216,7 @@ export function createLiveHandler(kind, {
         return res.json({ token: await getToken(controller.signal) });
       }
 
+      logHeadersProbe(requestId);
       const options = { signal: controller.signal };
       const settings = { model: process.env.OPENAI_LIVE_MODEL?.trim() || "gpt-4.1-mini", store: false };
       const { mode, language, fragment, context, pending, answered } = input;
@@ -309,12 +334,16 @@ async function identifyUser(token, signal) {
 }
 
 let openai;
+function getOpenAIKey() {
+  return process.env.OPENAI_API_KEY?.trim();
+}
+
 async function generate(params, options, trace) {
   trace.step = undefined;
   trace.httpStatus = undefined;
   trace.operation = "client_init";
   if (!openai) {
-    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    const apiKey = getOpenAIKey();
     if (!apiKey) throw new LiveError(500, "openai_key_missing", "El servicio de IA de Hilo Live no está configurado.");
     try {
       const fetcher = globalThis.fetch;

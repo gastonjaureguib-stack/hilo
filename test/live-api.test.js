@@ -33,6 +33,53 @@ async function setup(t, createResponse, handler = createLiveHandler) {
 
 const classify = (questions, pending = "") => ({ status: "completed", output_text: JSON.stringify({ questions, pending }) });
 
+test("diagnostica Headers solo en análisis autenticados y omite datos sensibles", async (t) => {
+  const previousKey = process.env.OPENAI_API_KEY;
+  t.after(() => {
+    if (previousKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousKey;
+  });
+  const log = t.mock.method(console, "info", () => {});
+  const { post, url } = await setup(t, () => classify([]));
+  process.env.OPENAI_API_KEY = "private-key-marker";
+  assert.equal((await post(input, { headers: {} })).status, 401);
+  assert.equal((await post(input, {
+    headers: { Authorization: "Bearer private-token-marker" },
+  })).status, 401);
+  assert.equal((await fetch(url + "/api/live-token", { headers: auth })).status, 200);
+  assert.equal(log.mock.calls.length, 0);
+
+  let rejectEntries = false;
+  const entries = Headers.prototype.entries;
+  t.mock.method(Headers.prototype, "entries", function () {
+    if (rejectEntries && this.get("authorization") === "Bearer private-key-marker") {
+      throw new TypeError("private-error-marker");
+    }
+    return entries.call(this);
+  });
+  const passed = { passed: true, failedOperation: null, exception: null };
+  for (const [key, authorization, failEntries] of [
+    ["private-key-marker", passed],
+    ["private-key-marker\nprivate-value-marker", { passed: false, failedOperation: "append", exception: "TypeError" }],
+    ["private-key-marker", { passed: false, failedOperation: "entries", exception: "TypeError" }, true],
+    [" ", null],
+  ]) {
+    process.env.OPENAI_API_KEY = key;
+    rejectEntries = Boolean(failEntries);
+    const response = await post({ ...input, fragment: "private-transcript-marker" });
+    assert.equal(response.status, 200);
+    const args = log.mock.calls.at(-1).arguments;
+    assert.deepEqual(args, ["[hilo-live] headers_probe", {
+      requestId: response.headers.get("x-hilo-request-id"),
+      control: passed,
+      authorizationChecked: authorization !== null,
+      authorization,
+    }]);
+    assert.doesNotMatch(JSON.stringify(args), /private-|Bearer/);
+    assert.doesNotMatch(await response.text(), /private-|Bearer/);
+  }
+});
+
 async function* answer(text = "Explicación") {
   yield { type: "response.output_text.delta", delta: text };
   yield { type: "response.completed" };
