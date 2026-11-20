@@ -11,6 +11,7 @@ export const crearProcesadorPCM = async ({
   stream,
   onAudioData,
   onError,
+  audioContext: existingContext,
 }) => {
   if (!stream) {
     throw new Error(
@@ -28,7 +29,7 @@ export const crearProcesadorPCM = async ({
     );
   }
 
-  const audioContext = new AudioContextClass();
+  const audioContext = existingContext ?? new AudioContextClass();
 
   let source = null;
   let worklet = null;

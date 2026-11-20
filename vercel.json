@@ -1,0 +1,7 @@
+{
+  "rewrites": [{ "source": "/live", "destination": "/index.html" }],
+  "functions": {
+    "api/live-analyze.js": { "maxDuration": 60 },
+    "api/live-token.js": { "maxDuration": 60 }
+  }
+}

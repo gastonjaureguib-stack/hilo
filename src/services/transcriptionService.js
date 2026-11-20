@@ -24,6 +24,8 @@ export const crearSesionTranscripcion = async ({
   onFinal,
   onEstado,
   onError,
+  connection,
+  audioContext,
 }) => {
   if (!stream) {
     throw new Error(
@@ -84,6 +86,7 @@ export const crearSesionTranscripcion = async ({
 
   try {
     socket = await crearConexionAssembly({
+      ...connection,
       onPartial: ({ texto, data }) => {
         if (
           destruido ||
@@ -142,6 +145,7 @@ export const crearSesionTranscripcion = async ({
 
     procesadorPCM = await crearProcesadorPCM({
       stream,
+      audioContext,
 
       onAudioData: (audioData) => {
         // Durante el flush final todavía debemos
@@ -152,6 +156,10 @@ export const crearSesionTranscripcion = async ({
         // la sesión.
         if (detenido || destruido) return;
 
+        if (connection?.signal && socket.bufferedAmount > 256_000) {
+          manejarError(new Error("La conexión es demasiado lenta para transmitir audio."));
+          return;
+        }
         enviarAudioAssembly(socket, audioData);
       },
 
@@ -172,7 +180,8 @@ export const crearSesionTranscripcion = async ({
 
     procesadorPCM = null;
 
-    forzarCierreAssembly(socket);
+    if (connection?.signal?.aborted) await terminarConexionAssembly(socket);
+    else forzarCierreAssembly(socket);
     socket = null;
 
     manejarError(error);
@@ -335,7 +344,8 @@ export const crearSesionTranscripcion = async ({
 
       destruido = true;
 
-      forzarCierreAssembly(socket);
+      if (connection?.signal?.aborted) await terminarConexionAssembly(socket);
+      else forzarCierreAssembly(socket);
       socket = null;
 
       cambiarEstado(ESTADOS.FINALIZADO);

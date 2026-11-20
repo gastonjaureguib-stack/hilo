@@ -119,6 +119,8 @@ const Header = () => {
           En clase
         </Link>
 
+        <Link to="/live">Hilo Live</Link>
+
         <Link to="/taller">
           Taller
         </Link>

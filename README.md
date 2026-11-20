@@ -83,6 +83,23 @@ La aplicación utiliza Supabase para la autenticación y dispone de pantallas de
 
 Las rutas de grabación y detalle de clases utilizan protección mediante `ProtectedRoute`.
 
+### Hilo Live
+
+Abrí **Hilo Live** en el menú o entrá a `/live` con tu cuenta. Elegí **Entrevista**, **Estudiante**, **Reunión**, **Traductor** o **General**. En Traductor, elegí también el idioma de destino. Confirmá que tenés el consentimiento de las personas que participan y pulsá **Iniciar escucha**.
+
+Usá un navegador con Web Audio y AudioWorklet desde HTTPS o `localhost`. Para captar audio ambiental en un teléfono, dejá Hilo Live abierto en primer plano cerca de la fuente de audio y concedé el acceso al micrófono. **Pausar** libera el micrófono y conserva las respuestas completas. **Reanudar** abre una conexión nueva. **Finalizar** detiene la escucha y cancela el análisis pendiente. **Limpiar historial** también borra el contexto reciente usado por la IA.
+
+AssemblyAI recibe el audio y entrega turnos parciales y definitivos. Live agrupa turnos definitivos y usa OpenAI para identificar preguntas completas, descartar duplicados y retener el inicio de una pregunta truncada para el siguiente lote. Traductor procesa los turnos directamente. El servidor emite las respuestas progresivamente como NDJSON. Hilo no graba el audio de Live ni guarda su transcripción o historial en IndexedDB o Supabase. La página conserva hasta 50 respuestas en memoria y configura las solicitudes a OpenAI con `store: false`. Los servicios externos procesan los datos conforme a la configuración de sus cuentas.
+
+#### API y despliegue
+
+- `GET /api/live-token` entrega un token temporal de AssemblyAI válido por 60 segundos para iniciar una conexión. Cada conexión puede durar hasta una hora y se cierra tras 30 segundos sin recibir audio ni mensajes.
+- `POST /api/live-analyze` recibe el turno, contexto reciente y modo. Devuelve eventos NDJSON de inicio, texto incremental y finalización.
+- Ambos endpoints validan el token de usuario de Supabase. Por usuario e instancia, admiten hasta 6 tokens y 45 análisis por minuto y una operación simultánea por endpoint. En un despliegue con varias instancias, estos límites se aplican de forma independiente.
+- En desarrollo, Express sirve ambos endpoints mediante el proxy de Vite. En Vercel se usan las funciones de `api/`, con una reescritura para la navegación directa a `/live`. Configurá en el despliegue las mismas variables obligatorias del entorno local.
+
+`OPENAI_LIVE_MODEL` es opcional y tiene como valor predeterminado `gpt-4.1-mini`. Si se configura, el modelo debe admitir Responses API, Structured Outputs y streaming. Para validar usuarios, el backend usa `SUPABASE_URL` y `SUPABASE_ANON_KEY` si están configuradas, o las variables `VITE_SUPABASE_*` existentes. Usá el mismo proyecto Supabase en ambos lados.
+
 ## Tecnologías utilizadas
 
 | Tecnología | Uso |
@@ -202,7 +219,7 @@ Al finalizar una sesión, Hilo detiene el procesamiento PCM, envía los últimos
 - Node.js y npm.
 - Un proyecto de Supabase configurado.
 - Una clave de API de AssemblyAI.
-- Una clave de API de OpenAI para el servicio de reformulación de preguntas.
+- Una clave de API de OpenAI para Hilo Live y el servicio de reformulación de preguntas.
 
 ### 1. Clonar el repositorio
 
@@ -263,6 +280,7 @@ Vite inicia el entorno de desarrollo y redirige las solicitudes a `/api` hacia `
 | `npm run build` | Genera la compilación de producción |
 | `npm run preview` | Permite visualizar la compilación |
 | `npm run lint` | Ejecuta Oxlint |
+| `npm test` | Ejecuta las pruebas automatizadas de Hilo Live |
 
 ## Persistencia de datos
 

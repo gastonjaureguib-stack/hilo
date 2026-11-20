@@ -2,6 +2,8 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
+import liveAnalyze from "../api/live-analyze.js";
+import liveToken from "../api/live-token.js";
 
 dotenv.config();
 
@@ -14,6 +16,9 @@ app.use(
     limit: "1mb",
   })
 );
+
+app.all("/api/live-analyze", liveAnalyze);
+app.all("/api/live-token", liveToken);
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({

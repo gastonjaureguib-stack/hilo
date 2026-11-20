@@ -16,15 +16,20 @@ const TIMEOUT_FINALIZACION = 10000;
 // OBTENER TOKEN TEMPORAL
 // =========================================================
 
-const obtenerTokenTemporal = async () => {
+const obtenerTokenTemporal = async ({ tokenUrl = TOKEN_URL, accessToken, signal }) => {
   const controller = new AbortController();
+
+  signal?.throwIfAborted();
+  const abort = () => controller.abort(signal.reason);
+  signal?.addEventListener("abort", abort, { once: true });
 
   const timeout = setTimeout(() => {
     controller.abort();
   }, TIMEOUT_CONEXION);
 
   try {
-    const response = await fetch(TOKEN_URL, {
+    const response = await fetch(tokenUrl, {
+      headers: accessToken ? { Authorization: "Bearer " + accessToken } : undefined,
       method: "GET",
       signal: controller.signal,
       cache: "no-store",
@@ -57,6 +62,7 @@ const obtenerTokenTemporal = async () => {
 
     return data.token;
   } catch (error) {
+    signal?.throwIfAborted();
     if (error?.name === "AbortError") {
       throw new Error(
         "Se agotó el tiempo de espera para obtener el token de AssemblyAI."
@@ -66,6 +72,7 @@ const obtenerTokenTemporal = async () => {
     throw error;
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
   }
 };
 
@@ -73,7 +80,7 @@ const obtenerTokenTemporal = async () => {
 // CREAR URL
 // =========================================================
 
-const crearUrlAssembly = (token) => {
+const crearUrlAssembly = (token, inactivityTimeout) => {
   const params = new URLSearchParams({
     sample_rate: String(SAMPLE_RATE),
     speech_model: SPEECH_MODEL,
@@ -81,6 +88,7 @@ const crearUrlAssembly = (token) => {
     token,
   });
 
+  if (inactivityTimeout) params.set("inactivity_timeout", String(inactivityTimeout));
   return `${ASSEMBLY_WS_URL}?${params.toString()}`;
 };
 
@@ -95,9 +103,14 @@ export const crearConexionAssembly = async ({
   onError,
   onClose,
   onTermination,
+  tokenUrl,
+  accessToken,
+  inactivityTimeout,
+  signal,
 } = {}) => {
-  const token = await obtenerTokenTemporal();
-  const url = crearUrlAssembly(token);
+  const token = await obtenerTokenTemporal({ tokenUrl, accessToken, signal });
+  signal?.throwIfAborted();
+  const url = crearUrlAssembly(token, inactivityTimeout);
 
   const socket = new WebSocket(url);
 
@@ -171,6 +184,17 @@ export const crearConexionAssembly = async ({
 
         reject(error);
       };
+
+      const abort = () => {
+        rechazarConexion(signal.reason);
+        if (socket.readyState === WebSocket.OPEN) {
+          void terminarConexionAssembly(socket);
+        } else {
+          forzarCierreAssembly(socket);
+        }
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      socket.addEventListener("close", () => signal?.removeEventListener("abort", abort), { once: true });
 
       socket.onopen = () => {
         conexionAbierta = true;

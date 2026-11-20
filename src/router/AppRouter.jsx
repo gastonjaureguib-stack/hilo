@@ -12,6 +12,7 @@ import ProtectedRoute from "../components/auth/ProtectedRoute.jsx";
 
 import Home from "../pages/Home.jsx";
 import Clase from "../pages/Clase.jsx";
+import HiloLive from "../pages/HiloLive.jsx";
 import Taller from "../pages/Taller.jsx";
 import ClaseDetalle from "../pages/ClaseDetalle.jsx";
 import Apuntes from "../pages/Apuntes.jsx";
@@ -75,6 +76,8 @@ const AppRouter = () => {
           {/* =============================================== */}
           {/* RUTAS PROTEGIDAS */}
           {/* =============================================== */}
+
+          <Route path="/live" element={<ProtectedRoute><HiloLive /></ProtectedRoute>} />
 
           <Route
             path="/clase"
