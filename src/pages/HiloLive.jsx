@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { capturarMicrofono, detenerStream, escucharFinCaptura } from "../audio/audioCapture.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { supabase } from "../lib/supabase.js";
@@ -9,16 +9,16 @@ import { formatearTiempo } from "../utils/timeUtils.js";
 import "../styles/live.css";
 
 const labels = {
-  idle: "Sin conexión",
   connecting: "Conectando",
   listening: "Escuchando",
   paused: "En pausa",
   finished: "Sesión finalizada",
-  error: "Escucha interrumpida",
+  error: "Error",
 };
 
 const initial = {
-  status: "idle", elapsed: 0, entries: [], transcript: "", partial: "", analyzing: false, error: "",
+  status: "paused", started: false, elapsed: 0, entries: [], latest: null,
+  transcript: "", partial: "", analyzing: false, exampleDraft: "", error: "",
 };
 
 function LiveSession() {
@@ -26,6 +26,7 @@ function LiveSession() {
   const [consent, setConsent] = useState(false);
   const [mode, setMode] = useState("general");
   const [language, setLanguage] = useState("es");
+  const [focused, setFocused] = useState(false);
   const session = useRef(null);
 
   useEffect(() => {
@@ -63,34 +64,49 @@ function LiveSession() {
     };
   }, []);
 
-  const { status, elapsed, entries, transcript, partial, analyzing, error } = view;
+  const { status, started, elapsed, entries, latest, transcript, partial, analyzing, exampleDraft, error } = view;
   const active = status === "listening";
   const connecting = status === "connecting";
-  const resumable = status === "paused" || status === "error";
   const running = connecting || active;
+  const hasSession = started && status !== "finished";
   const translating = mode === "traductor";
-  const [latest, ...history] = entries;
-  const start = (resume) => session.current?.start({ consent, mode, language }, { resume });
+  const history = entries.filter((entry) => entry !== latest);
+  const toggleListening = useCallback(() => {
+    if (running) session.current?.pause();
+    else if (consent) void session.current?.start({ consent, mode, language }, { resume: hasSession });
+  }, [running, consent, mode, language, hasSession]);
+
+  useEffect(() => {
+    function onSpace(event) {
+      if (event.code !== "Space" && event.key !== " ") return;
+      if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (event.composedPath().some((target) => target instanceof Element && target.matches(
+        "button, input, textarea, select, a[href], summary, label, audio[controls], video[controls], [tabindex], [contenteditable], [role=button], [role=link], [role=textbox], [role=combobox]",
+      ))) return;
+      if (!running && !consent) return;
+      event.preventDefault();
+      toggleListening();
+    }
+    window.addEventListener("keydown", onSpace);
+    return () => window.removeEventListener("keydown", onSpace);
+  }, [running, consent, toggleListening]);
 
   return (
-    <div className="hilo-live">
-      <div className="live-heading">
+    <div className="hilo-live" data-focus={focused}>
+      <div className="live-heading" hidden={focused}>
         <h1>Hilo Live</h1>
-        <div className="live-status">
-          <span role="status"><span className="live-dot" data-active={active} aria-hidden="true" />{labels[status]}</span>
-          <time aria-label="Tiempo de escucha">{formatearTiempo(elapsed / 1000)}</time>
-        </div>
+        <time aria-label="Tiempo de escucha">{formatearTiempo(elapsed / 1000)}</time>
       </div>
 
-      <section className="live-controls" aria-label="Controles de escucha">
+      <section className="live-controls" aria-label="Configuración de escucha" hidden={focused}>
         <div className="live-settings">
           <label>Modo
-            <select value={mode} disabled={running || resumable} onChange={(event) => setMode(event.target.value)}>
+            <select value={mode} disabled={hasSession} onChange={(event) => setMode(event.target.value)}>
               {Object.entries(liveModes).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </label>
           {translating && <label>Traducir a
-            <select value={language} disabled={running || resumable} onChange={(event) => setLanguage(event.target.value)}>
+            <select value={language} disabled={hasSession} onChange={(event) => setLanguage(event.target.value)}>
               {Object.entries(liveLanguages).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </label>}
@@ -101,30 +117,51 @@ function LiveSession() {
           <span>Tengo el consentimiento de las personas que participan. AssemblyAI recibe el audio y OpenAI procesa la transcripción. Hilo conserva el historial solo en esta página.</span>
         </label>
 
-        <div className="live-actions">
-          {active && <button className="live-primary" onClick={() => session.current?.stop("paused")}>Pausar</button>}
-          {!running && <button className="live-primary" disabled={!consent} onClick={() => start(resumable)}>
-            {resumable ? "Reanudar escucha" : "Iniciar escucha"}
-          </button>}
-          {(running || resumable) && <button onClick={() => session.current?.stop()}>Finalizar</button>}
+        {hasSession && <div className="live-actions"><button onClick={() => session.current?.stop()}>Finalizar</button></div>}
+      </section>
+
+      <section className="live-answer" aria-labelledby="live-answer-heading">
+        <div className="live-toolbar">
+          <div className="live-status" role="status">
+            <span><span className="live-dot" data-status={status} aria-hidden="true" />Micrófono: {labels[status]}</span>
+          </div>
+          <div className="live-actions">
+            <button type="button" className="live-primary" aria-keyshortcuts="Space"
+              disabled={!running && !consent} onClick={toggleListening}>
+              {running ? "Pausar escucha" : "Reanudar escucha"}
+            </button>
+            <button type="button" onClick={() => session.current?.newQuestion()}>Nueva pregunta</button>
+            {latest?.complete && <button type="button" disabled={analyzing || !consent}
+              onClick={() => void session.current?.requestExample()}>
+              Dame un ejemplo
+            </button>}
+            <button type="button" aria-pressed={focused} onClick={() => setFocused(!focused)}>
+              {focused ? "Salir del modo concentración" : "Modo Concentración"}
+            </button>
+          </div>
         </div>
-        {error && <p className="live-error" role="alert">{error}</p>}
+        <div className="live-answer-content" aria-busy={analyzing}>
+          <h2 id="live-answer-heading">{translating ? "Traducción en vivo" : "Respuesta en vivo"}</h2>
+          {latest && <p className="live-question">{latest.question}</p>}
+          <p className={latest?.answer ? "live-answer-text" : "live-placeholder"}>
+            {latest?.answer || (analyzing ? "Procesando la conversación…" : translating ? "La traducción aparecerá acá." : "La próxima pregunta y su respuesta aparecerán acá.")}
+          </p>
+          {(latest?.examples ?? []).concat(exampleDraft || []).map((example, index) => (
+            <div className="live-example" key={index}>
+              <h3>Ejemplo práctico</h3>
+              <p className="live-answer-text">{example}</p>
+            </div>
+          ))}
+          {error && <p className="live-error" role="alert">{error}</p>}
+        </div>
       </section>
 
-      <section className="live-answer" aria-labelledby="live-answer-heading" aria-busy={analyzing}>
-        <h2 id="live-answer-heading">{translating ? "Traducción en vivo" : "Respuesta en vivo"}</h2>
-        {latest && <p className="live-question">{latest.question}</p>}
-        <p className={latest?.answer ? "live-answer-text" : "live-placeholder"}>
-          {latest?.answer || (analyzing ? "Procesando la conversación…" : translating ? "La traducción aparecerá acá." : "Cuando se detecte una pregunta, la respuesta aparecerá acá.")}
-        </p>
-      </section>
-
-      <section className="live-transcript">
+      <section className="live-transcript" hidden={focused}>
         <h2>Transcripción reciente</h2>
         <p>{partial || transcript || "El texto aparecerá al hablar."}</p>
       </section>
 
-      <section className="live-history" aria-labelledby="live-history-heading">
+      <section className="live-history" aria-labelledby="live-history-heading" hidden={focused}>
         <div className="live-history-heading">
           <h2 id="live-history-heading">Historial de la sesión</h2>
           <button onClick={() => session.current?.clear()} disabled={!entries.length && !transcript && !partial && !analyzing}>Limpiar historial</button>
@@ -133,6 +170,7 @@ function LiveSession() {
           {history.map((entry, index) => <li key={index}>
             <p className="live-question">{entry.question}</p>
             <p>{entry.answer}</p>
+            {entry.examples?.map((example, index) => <p key={index}>{example}</p>)}
           </li>)}
         </ol> : <p className="live-placeholder">Las respuestas anteriores aparecerán acá.</p>}
       </section>

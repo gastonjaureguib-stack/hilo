@@ -52,30 +52,29 @@ export function createLiveSession({
   let queued = "";
   let context = "";
   let pending = "";
-  let lastTurn = "";
   let entries = [];
-  let activeEntry;
+  let latest;
   let startedAt = 0;
   let elapsed = 0;
   let preferences;
 
-  function cancelAnalysis() {
+  function discardQueuedAudio() {
     clearTimeout(timer);
     timer = null;
-    request?.abort();
-    request = null;
     queued = "";
     pending = "";
-    lastTurn = "";
-    if (activeEntry) {
-      entries = entries.filter((entry) => entry !== activeEntry);
-      update({ entries });
-      activeEntry = null;
-    }
-    update({ partial: "", analyzing: false });
   }
 
-  function stop(status = "finished", error = "") {
+  function cancelAnalysis() {
+    discardQueuedAudio();
+    request?.abort();
+    request = null;
+    entries = entries.filter((entry) => entry.complete);
+    if (latest && !latest.complete) latest = null;
+    update({ entries, latest, partial: "", analyzing: false, exampleDraft: "" });
+  }
+
+  function closeListening() {
     const current = connection;
     connection = null;
     clearTimeout(current?.timeout);
@@ -89,15 +88,33 @@ export function createLiveSession({
     }
     if (startedAt) elapsed += Date.now() - startedAt;
     startedAt = 0;
+  }
+
+  function stop(status = "finished", error = "") {
+    if (status === "paused") return pause();
+    closeListening();
     cancelAnalysis();
     update({ status, error, elapsed });
   }
 
-  function clear() {
+  function pause() {
+    if (!connection) return;
+    closeListening();
+    discardQueuedAudio();
+    update({ status: "paused", elapsed, partial: "" });
+  }
+
+  function newQuestion() {
+    if (connection) connection.discardTurn = connection.partialTurn;
+    latest = null;
     cancelAnalysis();
-    context = "";
+    update({ transcript: "", error: "" });
+  }
+
+  function clear() {
     entries = [];
-    update({ entries, transcript: "", error: "" });
+    context = "";
+    newQuestion();
   }
 
   function schedule() {
@@ -108,64 +125,103 @@ export function createLiveSession({
 
   async function processBatch() {
     timer = null;
-    const controller = new AbortController();
-    request = controller;
+    if (!connection || request || !queued) return;
     nextRequest = Date.now() + minInterval;
     const boundary = queued.lastIndexOf(" ", 2400);
     const size = queued.length <= 2400 ? queued.length : (boundary > 0 ? boundary : 2400);
     const fragment = queued.slice(0, size);
     queued = queued.slice(size).trimStart();
-    update({ analyzing: true });
+    const source = connection;
+    let activeEntry;
+    let previousEntry;
+    await runAnalysis({
+      ...preferences,
+      fragment,
+      context,
+      pending,
+      answered: entries.filter((entry) => entry.complete && preferences.mode !== "traductor")
+        .slice(0, 12).map((entry) => entry.question),
+    }, (event) => {
+      if (event.type === "pending" && connection === source) pending = event.text;
+      if (event.type === "start") {
+        previousEntry = latest;
+        activeEntry = { question: event.text, answer: "", complete: false };
+        latest = activeEntry;
+        entries = [activeEntry, ...entries].slice(0, 50);
+      }
+      if (activeEntry && (event.type === "delta" || event.type === "complete")) {
+        latest = event.type === "delta"
+          ? { ...activeEntry, answer: activeEntry.answer + event.text }
+          : { ...activeEntry, complete: true };
+        entries = [latest, ...entries.slice(1)];
+        activeEntry = latest.complete ? null : latest;
+      }
+      update({ entries, latest });
+    }, (failed) => {
+      if (failed) {
+        pending = "";
+        if (activeEntry) {
+          entries = entries.filter((entry) => entry !== activeEntry);
+          latest = entries.includes(previousEntry) ? previousEntry : null;
+          update({ entries, latest });
+        }
+      }
+      context = (context + " " + fragment).trim().slice(-3000);
+    });
+  }
+
+  async function requestExample() {
+    if (request || !latest?.complete) return;
+    const entry = latest;
+    let example = "";
+    clearTimeout(timer);
+    timer = null;
+    await runAnalysis({
+      action: "example", ...preferences, fragment: entry.question, context,
+      answer: entry.answer.slice(0, 6000),
+    }, (event) => {
+      if (event.type === "delta") {
+        example += event.text;
+        update({ exampleDraft: example });
+      }
+      if (event.type === "complete") {
+        latest = { ...entry, examples: [...(entry.examples ?? []), example] };
+        entries = entries.map((item) => item === entry ? latest : item);
+        update({ entries, latest, exampleDraft: "" });
+      }
+    });
+  }
+
+  async function runAnalysis(payload, onEvent, finish) {
+    const controller = new AbortController();
+    request = controller;
+    update({ analyzing: true, error: "" });
+    let failed = false;
     try {
       const accessToken = await getAccessToken();
       controller.signal.throwIfAborted();
-      await analyze({
-        ...preferences,
-        fragment,
-        context,
-        pending,
-        answered: entries.filter((entry) => entry.complete && preferences.mode !== "traductor")
-          .slice(0, 12).map((entry) => entry.question),
-      }, {
+      await analyze(payload, {
         accessToken,
         signal: controller.signal,
         onEvent(event) {
-          if (request !== controller) return;
-          if (event.type === "pending") pending = event.text;
-          if (event.type === "start") {
-            activeEntry = { question: event.text, answer: "", complete: false };
-            entries = [activeEntry, ...entries].slice(0, 50);
-          }
-          if (activeEntry && (event.type === "delta" || event.type === "complete")) {
-            const entry = event.type === "delta"
-              ? { ...activeEntry, answer: activeEntry.answer + event.text }
-              : { ...activeEntry, complete: true };
-            entries = [entry, ...entries.slice(1)];
-            activeEntry = entry.complete ? null : entry;
-          }
-          update({ entries, error: "" });
+          if (request === controller) onEvent(event);
         },
       });
-      if (request === controller) update({ error: "" });
     } catch (error) {
       if (request !== controller) return;
-      if (activeEntry) {
-        entries = entries.filter((entry) => entry !== activeEntry);
-        activeEntry = null;
-      }
-      pending = "";
-      update({ entries, error: error.message });
+      failed = true;
+      update({ error: error.message });
     } finally {
       if (request === controller) {
-        context = (context + " " + fragment).trim().slice(-3000);
+        finish?.(failed);
         request = null;
-        update({ analyzing: false });
+        update({ analyzing: false, exampleDraft: "" });
         schedule();
       }
     }
   }
 
-  async function start(options, { resume = false } = {}) {
+  async function start(options, { resume = false, recovering = false } = {}) {
     if (connection || !options.consent) return;
     if (!resume) {
       elapsed = 0;
@@ -185,7 +241,7 @@ export function createLiveSession({
       stop("error", message);
     };
 
-    update({ status: "connecting", elapsed, error: "" });
+    update({ status: "connecting", started: true, elapsed, error: "" });
     try {
       current.audio = openAudioContext();
       const { sourceStream, audioStream } = await capture();
@@ -195,6 +251,10 @@ export function createLiveSession({
       }
       current.stream = sourceStream;
       current.unwatch = watchTrack(sourceStream, () => fail(new Error("Se desconectó el micrófono.")));
+      if (signal.aborted) {
+        current.unwatch?.();
+        return;
+      }
       current.timeout = setTimeout(() => fail(new Error("Se agotó el tiempo para conectar la escucha.")), 35_000);
       const accessToken = await getAccessToken();
       signal.throwIfAborted();
@@ -202,14 +262,19 @@ export function createLiveSession({
         stream: audioStream,
         audioContext: current.audio,
         connection: { tokenUrl: "/api/live-token", accessToken, inactivityTimeout: 30, signal },
-        onParcial: ({ texto }) => {
-          if (!signal.aborted) update({ partial: texto });
+        onParcial: ({ texto, data }) => {
+          const turn = data?.turn_order;
+          if (signal.aborted || (turn !== undefined && (turn === current.discardTurn || turn === current.lastTurn))) return;
+          current.partialTurn = turn;
+          update({ partial: texto });
         },
         onFinal: ({ texto, data }) => {
           if (signal.aborted) return;
           const key = data?.turn_order ?? texto;
-          if (key === lastTurn) return;
-          lastTurn = key;
+          if (key === current.lastTurn) return;
+          current.lastTurn = key;
+          if (key === current.discardTurn) return;
+          if (current.partialTurn === key) current.partialTurn = undefined;
           update({ transcript: texto, partial: "" });
           queued = (queued + " " + texto).trim();
           if (queued.length > 12_000) {
@@ -218,7 +283,14 @@ export function createLiveSession({
           }
           if (!timer && !request) schedule();
         },
-        onError: fail,
+        onError(error) {
+          if (connection !== current) return;
+          if (!current.transcription || recovering) return fail(error);
+          closeListening();
+          discardQueuedAudio();
+          update({ partial: "" });
+          void start(options, { resume: true, recovering: true });
+        },
       });
       if (signal.aborted) {
         await transcription.destruir();
@@ -238,8 +310,8 @@ export function createLiveSession({
   }
 
   function interrupt() {
-    if (connection) stop("paused");
+    pause();
   }
 
-  return { start, stop, clear, tick, interrupt };
+  return { start, stop, pause, clear, newQuestion, requestExample, tick, interrupt };
 }

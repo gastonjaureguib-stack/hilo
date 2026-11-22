@@ -154,7 +154,7 @@ export const crearSesionTranscripcion = async ({
         // Solo bloqueamos el envío cuando el
         // procesador ya terminó o se destruyó
         // la sesión.
-        if (detenido || destruido) return;
+        if (detenido || destruido || connection?.signal?.aborted) return;
 
         if (connection?.signal && socket.bufferedAmount > 256_000) {
           manejarError(new Error("La conexión es demasiado lenta para transmitir audio."));

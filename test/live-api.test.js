@@ -85,6 +85,32 @@ async function* answer(text = "Explicación") {
   yield { type: "response.completed" };
 }
 
+test("genera ejemplos con pregunta, respuesta y contexto en el endpoint de análisis", async (t) => {
+  let calls = 0;
+  const { post } = await setup(t, (params) => {
+    calls++;
+    assert.equal(params.stream, true);
+    assert.equal(params.store, false);
+    assert.match(params.instructions, /ejemplo práctico/);
+    assert.deepEqual(JSON.parse(params.input), {
+      pregunta: "cómo funciona", respuesta: "Respuesta anterior", contexto: "Conversación previa",
+    });
+    return answer("Ejemplo generado");
+  });
+  const payload = { action: "example", mode: "general", fragment: "cómo funciona", context: "Conversación previa" };
+  assert.equal((await post({ ...payload, answer: "" })).status, 400);
+  assert.equal((await post({ ...payload, answer: "x".repeat(6001) })).status, 400);
+  const response = await post({ ...payload, answer: "Respuesta anterior" });
+  assert.deepEqual(events(await response.text()), [
+    { type: "pending", text: "" },
+    { type: "start", text: "cómo funciona" },
+    { type: "delta", text: "Ejemplo generado" },
+    { type: "complete" },
+    { type: "done" },
+  ]);
+  assert.equal(calls, 1);
+});
+
 function events(text) {
   return text.trim().split("\n").map((line) => JSON.parse(line));
 }
